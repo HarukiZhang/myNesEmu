@@ -193,6 +193,70 @@ namespace nes {
         return;
     }
 
+    void CPU::reset(){
+        A = X = Y = 0;
+        S = 0xfd;//low byte of stack pointer;
+        P.val = 0x00 | FLAG::U;//why OR FLAG::U ?
+
+        addr_abs = 0xfffc;//reset handle vector addr;
+        fetch(addr_abs, fetch_buf);
+        PC = fetch_buf;
+        fetch(addr_abs + 1, fetch_buf);
+        PC |= fetch_buf << 8;
+
+        addr_abs = addr_rel = fetch_buf = 0;
+        //reset handler takes time;
+        cycles = 8;
+    }
+
+    void CPU::irq(){
+        if (P.I == 0){
+            //push PC;
+            store(kSTACK_BASE + S, (PC >> 8) & 0xff );
+            --S;    //push high byte first;
+            store(kSTACK_BASE + S, PC & 0xff);
+            --S;
+            //set STATUS_FLAGS;
+            setFlag(FLAG::B, 0);//irq that is not caused by BRK;
+            setFlag(FLAG::U, 1);
+            setFlag(FLAG::I, 1);//shut down interrupt;
+            //push STATUS_FLAGS;
+            store(kSTACK_BASE + S, P.val);
+            --S;
+            //fetch handler addr;
+            addr_abs = 0xfffe;
+            fetch(addr_abs, fetch_buf);
+            PC = fetch_buf;
+            fetch(addr_abs + 1, fetch_buf);
+            PC |= fetch_buf << 8;
+            //interrupt handler takes time;
+            cycles = 7;
+        }
+    }
+
+    void CPU::nmi(){
+        //push PC;
+        store(kSTACK_BASE + S, (PC >> 8) & 0xff );
+        --S;
+        store(kSTACK_BASE + S, PC & 0xff);
+        --S;
+        //set STATUS_FLAGS;
+        setFlag(FLAG::B, 0);
+        setFlag(FLAG::U, 1);
+        setFlag(FLAG::I, 1);//shut down irq;
+        //push STATUS_FLAGS;
+        store(kSTACK_BASE + S, P.val);
+        --S;
+        //fetch handler addr;
+        addr_abs = 0xfffa;
+        fetch(addr_abs, fetch_buf);
+        PC = fetch_buf;
+        fetch(addr_abs + 1, fetch_buf);
+        PC |= fetch_buf << 8;
+        //nmi handler takes time;
+        cycles = 8;
+    }
+
     inline bool CPU::fetch(Word addr, Byte &data){
         return mainBus->read(addr, data);
     }
@@ -286,12 +350,12 @@ namespace nes {
         fetch(PC++, fetch_buf);
         Word hi = fetch_buf;
         hi <<= 8;
-        //there's an original cpu bug:
+        //there's an original cpu hardware bug:
         //the addition of lo + 1 will discard the carry,
         //which means indirect JMP instr will fail;
         fetch( (hi | lo) , fetch_buf);//fetch low byte first;
         addr_abs = fetch_buf;
-        lo += 1;//witch page crossing wrap around;
+        lo += 1;//with page crossing wrap around;
         fetch( (hi | lo) , fetch_buf);//fetch high byte;
         addr_abs |= fetch_buf << 8;//auto promotion to Word;
         return 0;
@@ -354,12 +418,36 @@ namespace nes {
         return 1;//add one cycle if page cross;
     }
     Byte CPU::ASL(){
-        //ABS, ZP0, ACCUM, ZPX, ABX;
+        //ACCUM, ZP0, ZPX, ABS, ABX;
+        if (cur_opcode == 0x0A){//opcode of ASL-ACCUM;
+            setFlag(FLAG::C, A & 0x80);
+            A <<= 1;
+            setFlag(FLAG::Z, A == 0);
+            setFlag(FLAG::N, A & 0x80);
+        }
+        else {
+            fetch(addr_abs, fetch_buf);
+            setFlag(FLAG::C, fetch_buf & 0x80);
+            fetch_buf <<= 1;
+            setFlag(FLAG::Z, fetch_buf == 0);
+            setFlag(FLAG::N, fetch_buf & 0x80);
+            store(addr_abs, fetch_buf);
+        }
+        return 0;
     }
-    Byte CPU::BCC(){}
+    Byte CPU::BCC(){
+        //REL;
+        if (P.C == 0){//if the carry flag is clear;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+    }
     Byte CPU::BCS(){
         //REL;
-        if (P.C){
+        if (P.C){//if the carry flag is set;
             addr_abs = PC + addr_rel;
             ++cycles;
             if ( (addr_abs & 0xff00) != (PC & 0xff00) )
@@ -369,67 +457,397 @@ namespace nes {
         return 0;
     }
 
-    Byte CPU::BEQ(){}
-    Byte CPU::BIT(){}
-    Byte CPU::BMI(){}
-    Byte CPU::BNE(){}
-    Byte CPU::BPL(){}
+    Byte CPU::BEQ(){
+        //REL;
+        if (P.Z){//if the zero flag is set;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;
+    }
+    Byte CPU::BIT(){
+        //ZP0, ABS;
+        fetch(addr_abs, fetch_buf);
+        setFlag(FLAG::V, fetch_buf & 0x40);//M6;
+        setFlag(FLAG::N, fetch_buf & 0x80);//M7;
+        setFlag(FLAG::Z, (A & fetch_buf) == 0);//result;
+        return 0;
+    }
+    Byte CPU::BMI(){
+        //REL;
+        if (P.N){//if the negative flag is set;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;
+    }
+    Byte CPU::BNE(){
+        //REL;
+        if (P.Z == 0){//if the zero flag is clear;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;
+    }
+    Byte CPU::BPL(){
+        //REL;
+        if (P.N == 0){//if the negative flag is clear;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;
+    }
 
-    Byte CPU::BRK(){}//IMP
-    Byte CPU::BVC(){}
-    Byte CPU::BVS(){}
+    Byte CPU::BRK(){
+        //IMP
+        setFlag(FLAG::I, true);//shut down interrupt;
+        //push the next instr addr;
+        ++PC;
+        store(kSTACK_BASE + S, (PC >> 8) & 0xff);
+        --S;//push high byte first;
+        store(kSTACK_BASE + S, PC & 0xff);
+        --S;
+        //push status flags;
+        setFlag(FLAG::B, true);
+        store(kSTACK_BASE + S, P.val);
+        --S;
+        setFlag(FLAG::B, false);
+        //goto irq handler;
+        fetch(0xfffe, fetch_buf);
+        PC = fetch_buf;
+        fetch(0xffff, fetch_buf);
+        PC |= fetch_buf << 8;
+        return 0;
+    }
+    Byte CPU::BVC(){
+        //REL;
+        if (P.V == 0){//if the overflow flag is clear;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;        
+    }
+    Byte CPU::BVS(){
+        //REL;
+        if (P.V){//if the overflow flag is set;
+            addr_abs = PC + addr_rel;
+            ++cycles;
+            if ( (addr_abs & 0xff00) != (PC & 0xff00) )
+                ++cycles;
+            PC = addr_abs;
+        }
+        return 0;
+    }
     Byte CPU::CLC(){
         //IMP
         setFlag(FLAG::C, false);
         return 0;
     }
-    Byte CPU::CLD(){}//IMP
-
-    Byte CPU::CLI(){}//IMP
-    Byte CPU::CLV(){}//IMP
-    Byte CPU::CMP(){}
-    Byte CPU::CPX(){}
-    Byte CPU::CPY(){}
-
-    Byte CPU::DEC(){}
-    Byte CPU::DEX(){}//IMP
-    Byte CPU::DEY(){}//IMP
-    Byte CPU::EOR(){
-        //add one cycle if page cross;
+    Byte CPU::CLD(){
+        //IMP
+        setFlag(FLAG::D, false);
+        return 0;
     }
-    Byte CPU::INC(){}
 
-    Byte CPU::INX(){}//IMP
-    Byte CPU::INY(){}//IMP
-    Byte CPU::JMP(){}
-    Byte CPU::JSR(){}
+    Byte CPU::CLI(){
+        //IMP
+        setFlag(FLAG::I, false);
+        return 0;
+    }
+    Byte CPU::CLV(){
+        //IMP
+        setFlag(FLAG::V, false);
+        return 0;
+    }
+    Byte CPU::CMP(){
+        //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        fetch(addr_abs, fetch_buf);
+        bool pos = A >= fetch_buf;
+        setFlag(FLAG::C, pos);
+        setFlag(FLAG::Z, A == fetch_buf);
+        setFlag(FLAG::N, !pos);
+        return 0;
+    }
+    Byte CPU::CPX(){
+        //IMM, ZP0, ABS;
+        fetch(addr_abs, fetch_buf);
+        bool pos = X >= fetch_buf;
+        setFlag(FLAG::C, pos);
+        setFlag(FLAG::Z, X == fetch_buf);
+        setFlag(FLAG::N, !pos);
+        return 0;
+    }
+    Byte CPU::CPY(){
+        //IMM, ZP0, ABS;
+        fetch(addr_abs, fetch_buf);
+        bool pos = Y >= fetch_buf;
+        setFlag(FLAG::C, pos);
+        setFlag(FLAG::Z, Y == fetch_buf);
+        setFlag(FLAG::N, !pos);
+        return 0;
+    }
+
+    Byte CPU::DEC(){
+        //ZP0, ZPX, ABS, ABX;
+        fetch(addr_abs, fetch_buf);
+        Byte res = fetch_buf - 1;
+        setFlag(FLAG::Z, res == 0);
+        setFlag(FLAG::N, res & 0x80);
+        store(addr_abs, res);//write back;
+        return 0;
+    }
+    Byte CPU::DEX(){
+        //IMP
+        --X;
+        setFlag(FLAG::Z, X == 0);
+        setFlag(FLAG::N, X & 0x80);
+        return 0;
+    }
+    Byte CPU::DEY(){
+        //IMP
+        --Y;
+        setFlag(FLAG::Z, Y == 0);
+        setFlag(FLAG::N, Y & 0x80);
+        return 0;
+    }
+    Byte CPU::EOR(){
+        //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        fetch(addr_abs, fetch_buf);
+        A ^= fetch_buf;
+        setFlag(FLAG::Z, A == 0);
+        setFlag(FLAG::N, A & 0x80);
+        return 1;//add one cycle if page cross;
+    }
+    Byte CPU::INC(){
+        //ZP0, ZPX, ABS, ABX;
+        fetch(addr_abs, fetch_buf);
+        Byte res = fetch_buf + 1;
+        setFlag(FLAG::Z, res == 0);
+        setFlag(FLAG::N, res & 0x80);
+        store(addr_abs, res);
+        return 0;
+    }
+
+    Byte CPU::INX(){
+        //IMP
+        ++X;
+        setFlag(FLAG::Z, X == 0);
+        setFlag(FLAG::N, X & 0x80);
+        return 0;
+    }
+    Byte CPU::INY(){
+        //IMP
+        ++Y;
+        setFlag(FLAG::Z, Y == 0);
+        setFlag(FLAG::Z, Y & 0x80);
+        return 0;
+    }
+    Byte CPU::JMP(){
+        //ABS, IND;
+        PC = addr_abs;
+        return 0;
+    }
+    Byte CPU::JSR(){
+        //ABS;
+        --PC;//push PC - 1;
+        store(kSTACK_BASE + S, (PC >> 8) & 0xff);
+        --S; //push high byte first;
+        store(kSTACK_BASE + S, PC & 0xff);
+        --S;
+        PC = addr_abs;
+        return 0;
+    }
     Byte CPU::LDA(){
-        if (this->fetch(addr_abs + addr_rel, fetch_buf))
-            A = fetch_buf;
-        //add one cycle if page cross;
+        //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        fetch(addr_abs, fetch_buf);
+        A = fetch_buf;
+        setFlag(FLAG::Z, A == 0);
+        setFlag(FLAG::N, A & 0x80);
+        return 1;//add one cycle if page cross;
     }
 
     Byte CPU::LDX(){
-        //add one cycle if page cross;
+        //IMM, ZP0, ZPY, ABS, ABY;
+        fetch(addr_abs, fetch_buf);
+        X = fetch_buf;
+        setFlag(FLAG::Z, X == 0);
+        setFlag(FLAG::N, X & 0x80);
+        return 1;//add one cycle if page cross;
     }
     Byte CPU::LDY(){
-        //add one cycle if page cross;
+        //IMM, ZP0, ZPX, ABS, ABX;
+        fetch(addr_abs, fetch_buf);
+        Y = fetch_buf;
+        setFlag(FLAG::Z, Y == 0);
+        setFlag(FLAG::N, Y & 0x80);
+        return 1;//add one cycle if page cross;
     }
-    Byte CPU::LSR(){}//ABS、ZP0、ACCUM、ZPX、ABX；
-    Byte CPU::NOP(){}//IMP
-    Byte CPU::ORA(){}
+    Byte CPU::LSR(){
+        //ACCUM, ZP0, ZPX, ABS, ABX;
+        if (cur_opcode == 0x4A){//opcode of LSR-ACCUM;
+            setFlag(FLAG::C, A & 0x1);
+            A >>= 1;
+            setFlag(FLAG::Z, A == 0);
+            setFlag(FLAG::N, A & 0x80);
+        }
+        else {
+            fetch(addr_abs, fetch_buf);
+            setFlag(FLAG::C, fetch_buf & 0x1);
+            fetch_buf >>= 1;
+            setFlag(FLAG::Z, fetch_buf == 0);
+            setFlag(FLAG::N, fetch_buf & 0x80);
+            store(addr_abs, fetch_buf);
+        }
+        return 0;
+    }
+    Byte CPU::NOP(){
+        //IMP
+        return 0;
+    }
+    Byte CPU::ORA(){
+        //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        fetch(addr_abs, fetch_buf);
+        A |= fetch_buf;
+        setFlag(FLAG::Z, A == 0);
+        setFlag(FLAG::N, A & 0x80);
+        return 0;
+    }
 
-    Byte CPU::PHA(){}//IMP
-    Byte CPU::PHP(){}//IMP
-    Byte CPU::PLA(){}//IMP
-    Byte CPU::PLP(){}//IMP
-    Byte CPU::ROL(){}//ABS、ZP0、ACCUM、ZPX、ABX；
+    Byte CPU::PHA(){
+        //IMP
+        store(kSTACK_BASE + S, A);
+        --S;
+        return 0;
+    }
+    Byte CPU::PHP(){
+        //IMP
+        store(kSTACK_BASE + S, P.val);
+        --S;
+        return 0;
+    }
+    Byte CPU::PLA(){
+        //IMP
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        A = fetch_buf;
+        setFlag(FLAG::Z, A == 0);
+        setFlag(FLAG::N, A & 0x80);
+        return 0;
+    }
+    Byte CPU::PLP(){
+        //IMP
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        P.val = fetch_buf;
+        return 0;
+    }
+    Byte CPU::ROL(){
+        //ACCUM, ZP0, ZPX, ABS, ABX;
+        Byte b7;
+        if (cur_opcode == 0x2A){//opcode of ROL-ACCUM;
+            b7 = (A & 0x80) ? 1 : 0;
+            setFlag(FLAG::C, b7);
+            A <<= 1;
+            A |= b7;
+            setFlag(FLAG::Z, A == 0);
+            setFlag(FLAG::N, A & 0x80);
+        }
+        else {
+            fetch(addr_abs, fetch_buf);
+            b7 = (fetch_buf & 0x80) ? 1 : 0;
+            setFlag(FLAG::C, b7);
+            fetch_buf <<= 1;
+            fetch_buf |= b7;
+            setFlag(FLAG::Z, fetch_buf == 0);
+            setFlag(FLAG::N, fetch_buf & 0x80);
+            store(addr_abs, fetch_buf);
+        }
+        return 0;
+    }
 
-    Byte CPU::ROR(){}//ABS、ZP0、ACCUM、ZPX、ABX；
-    Byte CPU::RTI(){}//IMP
-    Byte CPU::RTS(){}//IMP
+    Byte CPU::ROR(){
+        //ACCUM, ZP0, ZPX, ABS, ABX;
+        Byte b0;
+        if (cur_opcode == 0x6A){//opcode of ROR-ACCUM;
+            b0 = A & 0x1;
+            setFlag(FLAG::C, b0);
+            A >>= 1;
+            A |= (b0 << 7);
+            setFlag(FLAG::Z, A == 0);
+            setFlag(FLAG::N, b0);
+        }
+        else {
+            fetch(addr_abs, fetch_buf);
+            b0 = fetch_buf & 0x1;
+            setFlag(FLAG::C, b0);
+            fetch_buf >>= 1;
+            fetch_buf |= (b0 << 7);
+            setFlag(FLAG::Z, fetch_buf == 0);
+            setFlag(FLAG::N, b0);
+            store(addr_abs, fetch_buf);
+        }
+        return 0;
+    }
+    Byte CPU::RTI(){
+        //IMP
+        //pull status flags;
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        P.val = fetch_buf;
+        setFlag(FLAG::B, false);
+        setFlag(FLAG::U, false);
+        //pull PC;
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        PC = fetch_buf; //pull low byte first;
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        PC |= (Word)fetch_buf << 8;
+        return 0;
+    }
+    Byte CPU::RTS(){
+        //IMP
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        PC = fetch_buf; //pull low byte first;
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        PC |= (Word)fetch_buf << 8;
+        ++PC;
+        return 0;
+    }
     Byte CPU::SBC(){
-        //add one cycle if page cross;
+        //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        fetch(addr_abs, fetch_buf);
+        Word res = A - (!P.C);//carry not = borrow;
+        res -= fetch_buf;
+        setFlag(FLAG::C, res > A);
+        //test zero;
+        setFlag(FLAG::Z, (res & 0xff) == 0);
+        //test overflow;
+        bool sign_acc = A & 0x80;
+        bool sign_fch = fetch_buf & 0x80;
+        bool sign_res = res & 0x80;
+        setFlag(FLAG::V, (sign_acc ^ sign_fch) && (sign_acc ^ sign_res) );
+        //test negative;
+        setFlag(FLAG::N, sign_res);
+        A = res & 0xff;
+        return 1;//add one cycle if page cross;
     }
     Byte CPU::SEC(){}//IMP
     Byte CPU::SED(){}//IMP

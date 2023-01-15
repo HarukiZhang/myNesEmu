@@ -10,6 +10,7 @@ namespace nes {
 
     constexpr size_t kMAX_ZERO_PAGE = 0x100;
     constexpr size_t kMAX_SYS_STACK = 0x100;
+    constexpr size_t kSTACK_BASE = 0x100;
     constexpr size_t kMAX_INTER_RAM = 0x600;
     constexpr size_t kMAX_RAM = 0x800;
 

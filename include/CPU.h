@@ -20,7 +20,9 @@ namespace nes {
             C = 0b1,
             Z = 0b10,
             I = 0b100,
+            D = 0b1000,
             B = 0b10000,
+            U = 0b100000,
             V = 0b1000000,
             N = 0b10000000,
         };
@@ -38,12 +40,12 @@ namespace nes {
         // void exe_instr();
         void clock();
         void reset();
+        void irq();
+        void nmi();
 
     private:
         inline bool fetch(Word addr, Byte &data);
         inline bool store(Word addr, Byte data);
-        void nmi();
-        void irq();
         inline void setFlag(FLAG flag, bool test);
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
@@ -69,9 +71,10 @@ namespace nes {
 
         Byte XXX();//illegal opcodes catcher;
     private:
-        Byte A, X, Y;
-        Word PC;
-        Byte S;
+        Byte A;    //accumulator;
+        Byte X, Y; //index regs x, y;
+        Word PC;   //program counter;
+        Byte S;    //stack pointer;
         //cpu status flags reg;
         union STATUS_FLAGS {
             struct {
@@ -80,7 +83,7 @@ namespace nes {
                 Byte I : 1;      //interrupt disable
                 Byte D : 1;      //decimal mode
                 Byte B : 1;      //break command
-                Byte dummy0 : 1; //unused
+                Byte U : 1;      //unused
                 Byte V : 1;      //overflow
                 Byte N : 1;      //negative;           bit7
             };
