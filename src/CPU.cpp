@@ -175,6 +175,13 @@ namespace nes {
         mainBus = _bus;
     }
 
+    void CPU::exe_instr(){
+        do {
+            clock();
+        } while (cycles != 0);
+        return;
+    }
+
     void CPU::clock(){
         if (cycles == 0){
             fetch(PC++, cur_opcode);
@@ -849,21 +856,84 @@ namespace nes {
         A = res & 0xff;
         return 1;//add one cycle if page cross;
     }
-    Byte CPU::SEC(){}//IMP
-    Byte CPU::SED(){}//IMP
+    Byte CPU::SEC(){
+        //IMP
+        setFlag(FLAG::C, true);
+        return 0;
+    }
+    Byte CPU::SED(){
+        //IMP
+        setFlag(FLAG::D, true);
+        return 0;
+    }
 
-    Byte CPU::SEI(){}//IMP
-    Byte CPU::STA(){}
-    Byte CPU::STX(){}
-    Byte CPU::STY(){}
-    Byte CPU::TAX(){}//IMP
+    Byte CPU::SEI(){
+        //IMP
+        setFlag(FLAG::I, true);
+        return 0;
+    }
+    Byte CPU::STA(){
+        //ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+        store(addr_abs, A);
+        return 0;
+    }
+    Byte CPU::STX(){
+        //ZP0, ZPY, ABS;
+        store(addr_abs, X);
+        return 0;
+    }
+    Byte CPU::STY(){
+        //ZP0, ZPX, ABS;
+        store(addr_abs, Y);
+        return 0;
+    }
+    Byte CPU::TAX(){
+        //IMP
+        X = A;
+        setFlag(FLAG::Z, X == 0);
+        setFlag(FLAG::N, X & 0x80);
+        return 0;
+    }
 
-    Byte CPU::TAY(){}//IMP
-    Byte CPU::TSX(){}//IMP
-    Byte CPU::TXA(){}//IMP
-    Byte CPU::TXS(){}//IMP
-    Byte CPU::TYA(){}//IMP
+    Byte CPU::TAY(){
+        //IMP
+        Y = A;
+        setFlag(FLAG::Z, Y == 0);
+        setFlag(FLAG::N, Y & 0x80);
+        return 0;
+    }
+    Byte CPU::TSX(){
+        //IMP
+        X = S;
+        setFlag(FLAG::Z, X == 0);
+        setFlag(FLAG::N, X & 0x80);
+        return 0;
+    }
+    Byte CPU::TXA(){
+        //IMP
+        A = X;
+        setFlag(FLAG::Z, A == 0);
+        setFlag(FLAG::N, A & 0x80);
+        return 0;
+    }
+    Byte CPU::TXS(){
+        //IMP
+        S = X;
+        setFlag(FLAG::Z, S == 0);
+        setFlag(FLAG::N, S & 0x80);
+        return 0;
+    }
+    Byte CPU::TYA(){
+        //IMP
+        A = Y;
+        setFlag(FLAG::Z, Y == 0);
+        setFlag(FLAG::N, Y & 0x80);
+        return 0;
+    }
     
-    Byte CPU::XXX(){}//IMP
+    Byte CPU::XXX(){
+        //IMP
+        return 0;
+    }
 
 };

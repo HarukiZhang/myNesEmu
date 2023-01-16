@@ -8,6 +8,8 @@ namespace nes {
     using Word = std::uint16_t;
     using Byte = std::uint8_t;
 
+    constexpr size_t kMAX_INSTR_MTX_SIZE = 0x100;
+
     constexpr size_t kMAX_ZERO_PAGE = 0x100;
     constexpr size_t kMAX_SYS_STACK = 0x100;
     constexpr size_t kSTACK_BASE = 0x100;
@@ -22,7 +24,11 @@ namespace nes {
     constexpr size_t kMAX_CUR_PALET = 0x10;
 
     constexpr size_t kSPR_HEIGHT_8 = 0x8;
-    constexpr size_t kSPR_HEIGHT_16 = 0x10;    
+    constexpr size_t kSPR_HEIGHT_16 = 0x10;
+
+    constexpr size_t kNES_HEAD_SIZE = 0x10;
+    constexpr size_t kTRAINER_SIZE = 0x200;
+    constexpr size_t kPRG_ROM_SIZE = 0x4000;
 
     //RAM for CPU, 2KB;
     typedef union _RAM {
@@ -126,36 +132,6 @@ namespace nes {
         };
         Byte vals[8];
     } PPU_REG;
-
-    //header of iNES file
-    typedef struct _NESHeader {
-        char NES1A[4];           //Btye 0-3
-        uint8_t num_prg_rom;     //Btye 4
-        uint8_t num_chr_rom;     //Byte 5
-        // uint8_t rom_ctrl;
-        union {                  //Byte 6
-            struct {
-                uint8_t mirror_hv : 1;
-                uint8_t save_ram : 1;
-                uint8_t trainer : 1;
-                uint8_t four_screen : 1;
-                uint8_t n_mapper_low : 4;
-            };
-            uint8_t val;
-        } byte_6;
-        union {                  //Byte 7
-            struct {
-                uint8_t vs_unisys : 1;
-                uint8_t playchoice : 1;
-                uint8_t nes_2_sign : 2;
-                uint8_t n_mapper_up : 4;
-            };
-            uint8_t val;
-        } byte_7;
-        uint8_t num_prg_ram;     //Byte 8
-        char tailBytes[7];       //Byte 9-15
-    } NESHeader;
-
 
 };//end nes
 

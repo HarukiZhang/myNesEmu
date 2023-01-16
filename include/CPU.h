@@ -2,7 +2,6 @@
 #define CPU_H
 
 #include<string>
-#include<vector>
 
 #include "NESDef.h"
 
@@ -37,7 +36,7 @@ namespace nes {
         CPU();
         ~CPU();
         void connect(MainBus *_bus);
-        // void exe_instr();
+        void exe_instr();
         void clock();
         void reset();
         void irq();
@@ -50,11 +49,12 @@ namespace nes {
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
+
         //Adressing Modes
         Byte IMP(); Byte IMM(); Byte ZP0(); Byte ZPX();
-        //accumulator addressing could be included in IMP();
         Byte ZPY(); Byte REL(); Byte ABS(); Byte ABX();
         Byte ABY(); Byte IND(); Byte IZX(); Byte IZY();
+        //accumulator addressing could be included in IMP();
 
         //Opcodes
         Byte ADC(); Byte AND(); Byte ASL(); Byte BCC(); Byte BCS(); 
@@ -96,8 +96,7 @@ namespace nes {
         Byte cur_opcode;
         Byte cycles;
 
-        struct INSTR instr_mtx[256];
-        // std::vector<INSTR> instr_mtx;
+        struct INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
 
         MainBus *mainBus = nullptr;
 
