@@ -276,11 +276,13 @@ namespace nes {
         else P.val &= (~flag);
     }
 
+    //==================================================================
     //addressing modes:
+    //==================================================================
 
     Byte CPU::IMP(){
-        //implied mode usally operate upon accumulator;
-        fetch_buf = A;
+        //this addressing mode includes both Implicit mode 
+        //and Accumulator mode;
         return 0;
     }
 
@@ -332,7 +334,7 @@ namespace nes {
         Word tmp = fetch_buf;
         tmp <<= 8;
         addr_abs |= tmp;
-        addr_abs += X;
+        addr_abs += X;  //with page crossing;
         if ( (addr_abs & 0xff00) != tmp )
             return 1;
         else return 0;
@@ -345,7 +347,7 @@ namespace nes {
         Word tmp = fetch_buf;
         tmp <<= 8;
         addr_abs |= tmp;
-        addr_abs += Y;
+        addr_abs += Y;  //with page crossing;
         if ( (addr_abs & 0xff00) != tmp )
             return 1;
         else return 0;
@@ -362,15 +364,17 @@ namespace nes {
         //which means indirect JMP instr will fail;
         fetch( (hi | lo) , fetch_buf);//fetch low byte first;
         addr_abs = fetch_buf;
-        lo += 1;//with page crossing wrap around;
-        fetch( (hi | lo) , fetch_buf);//fetch high byte;
+        lo += 1;//if page crossed, it wraps around;
+        fetch( (hi | lo) , fetch_buf);
         addr_abs |= fetch_buf << 8;//auto promotion to Word;
         return 0;
     }
     
     Byte CPU::IZX(){
+        //normally used in conjunction with 
+        //a table of address held on zero page;
         fetch(PC++, fetch_buf);
-        Byte tmp = fetch_buf + X;//with zero page wrap around;
+        Byte tmp = fetch_buf + X;//wrap around if crossed;
         fetch(tmp + 1, fetch_buf);//fetch high byte first;
         addr_abs = fetch_buf;
         addr_abs <<= 8;
@@ -381,19 +385,22 @@ namespace nes {
     
     Byte CPU::IZY(){
         fetch(PC++, fetch_buf);
-        addr_abs = fetch_buf;//use addr_abs as tmp;
+        addr_abs = fetch_buf;//in instr contains the zero page location
+                             //of the least signif byte of 16 bit addr;
         fetch(addr_abs + 1, fetch_buf);//fetch high byte first;
         Word base = fetch_buf;
         base <<= 8;
         fetch(addr_abs, fetch_buf);
         base |= fetch_buf;
-        addr_abs = base + Y;
+        addr_abs = base + Y;//actual target addr by adding reg Y;
         if ( (addr_abs & 0xff00) != (base & 0xff00) )
             return 1;
         else return 0;
     }
 
+    //==================================================================
     //opcodes:
+    //==================================================================
 
     Byte CPU::ADC(){
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
@@ -451,6 +458,7 @@ namespace nes {
                 ++cycles;
             PC = addr_abs;
         }
+        return 0;
     }
     Byte CPU::BCS(){
         //REL;

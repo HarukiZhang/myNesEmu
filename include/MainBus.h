@@ -9,7 +9,7 @@ namespace nes {
 
     class MainBus {
     public:
-        MainBus(){}
+        MainBus();
         void connect(CPU *_cpu, RAM *_ram);
         bool read(Word addr, Byte &data);
         bool write(Word addr, Byte data);

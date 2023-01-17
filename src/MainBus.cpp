@@ -18,8 +18,7 @@ namespace nes {
             return true;
         }
         else if (addr < 0x4000){
-            addr &= 0x2007;
-            return ppu->read_regs(addr - 0x2000, data);
+            return ppu->read_regs( (addr & 0x2007) - 0x2000, data);
         }
         else if (addr < 0x4020){
             std::cerr << "Try to read from APU reg, but no APU now." << std::endl;
@@ -43,12 +42,11 @@ namespace nes {
 
     bool MainBus::write(Word addr, Byte data){
         if (addr < 0x2000){
-            data = ram->vals[addr & 0x7ff];
+            ram->vals[addr & 0x7ff] = data;
             return true;
         }
         else if (addr < 0x4000){
-            addr &= 0x2007;
-            return ppu->read_regs(addr - 0x2000, data);
+            return ppu->write_regs( (addr & 0x2007) - 0x2000, data);
         }
         else if (addr < 0x4020){
             std::cerr << "Try to write to APU reg, but no APU now." << std::endl;
