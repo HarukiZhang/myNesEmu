@@ -203,7 +203,8 @@ namespace nes {
     void CPU::reset(){
         A = X = Y = 0;
         S = 0xfd;//low byte of stack pointer;
-        P.val = 0x00 | FLAG::U;//why OR FLAG::U ?
+        P.val = 0;
+        // P.val = 0x00 | FLAG::U;//why OR FLAG::U ?
 
         addr_abs = 0xfffc;//reset handle vector addr;
         fetch(addr_abs, fetch_buf);

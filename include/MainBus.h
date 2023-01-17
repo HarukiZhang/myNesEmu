@@ -21,8 +21,9 @@ namespace nes {
         // OAM *oam = nullptr;
         // OAM_BUF *oam_buf = nullptr;
     
+    //temporarily, used for testing cpu to read instructions;
     public:
-        Byte *cart_space = nullptr;//temporarily;
+        Byte *cart_space = nullptr;
     };
 
 };//end nes

@@ -21,18 +21,23 @@ int main(){
     cspace[0xFFFF - 0x8000] = 0xC0;
 
     std::ifstream fs;
-    fs.open("D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test.nes", std::ios_base::in | std::ios_base::binary);
-
+    fs.open("D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\test_cpu.nes", std::ios_base::in | std::ios_base::binary);
     fs.seekg(0x10, fs.beg);
-
-    fs.read(reinterpret_cast<char*>(cspace), 0x11);
-
+    fs.read(reinterpret_cast<char*>(cspace), 0x2F);
     fs.close();
 
-    cpu.reset();
+    std::ofstream ofstm;
+    ofstm.open("./test_cpu.log", std::ios_base::out);
 
-    while (true){
-        cpu.exe_instr();
+    cpu.reset();
+    cpu.clear_cycle();
+
+    while (ram.inter_ram[0x5ff] == 0){
+        cpu.clock();
+        cpu.print_status(ofstm);
+        cpu.clear_cycle();
     }
+    ofstm.close();
+    
     return 0;
 }
