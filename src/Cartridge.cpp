@@ -1,71 +1,48 @@
 #include<iostream>
+#include<fstream>
+#include<sys/stat.h>
+
 #include "Cartridge.h"
 
 namespace nes {
 
-    Cartridge::Cartridge(){
-        stat(rom_path, &statbuf);
-        load_file();
-        read_header();
-        set_mapper();
+    Cartridge::Cartridge(){}
+
+    Cartridge::Cartridge(char *file_path){
+        load_file(file_path);
     };
 
-    Cartridge::~Cartridge(){
-        rom_stream.close();
-    }
+    Cartridge::~Cartridge(){}
 
     bool Cartridge::read_prg_rom(Word addr, Byte &data){
-        //prg-rom: 16KB per bank;
-        //now presume there's only one 16KB bank here;
-        size_t pos = kNES_HEAD_SIZE;
-        if (header.byte_6.trainer)
-            pos += kTRAINER_SIZE;
-        if (header.num_prg_rom > (addr / kPRG_ROM_SIZE) ){
-            //if addr < 0x4000, only one bank;
-            //if addr >= 0x4000, require more than one bank;
-            rom_stream.seekg(addr + pos, rom_stream.beg);
-            rom_stream.read(reinterpret_cast<char*>(&data), 1);
-            return true;
-        }
-        return false;
+        //need mapper to give an appropriate address
+        //for bank shifting;
+        data = prg_rom[addr];
+        return true;
     }
 
     bool Cartridge::read_chr_rom(Word addr, Byte &data){
-        size_t pos = kNES_HEAD_SIZE;
-        if (header.byte_6.trainer)
-            pos += kTRAINER_SIZE;
-        pos += header.num_prg_rom * kPRG_ROM_SIZE;
-        rom_stream.seekg(addr + pos, rom_stream.beg);
+        data = chr_rom[addr];
         return true;
     }
-    
-    void Cartridge::set_mapper(){}
 
-    inline Mapper *Cartridge::get_mapper(){
-        return mapper;
-    }
-
-    bool Cartridge::load_file(){
-        rom_stream.open(rom_path, std::ios_base::binary | std::ios_base::in);
-        if (!rom_stream){
-            std::cout << "ROM file open failed." << std::endl;
+    bool Cartridge::load_file(char *file_path){
+        std::ifstream ifs {file_path, std::ios_base::binary | std::ios_base::in};
+        if (!ifs){
+            std::cerr << "ROM file open failed." << std::endl;
             return false;
         }
-        return true;
-    }
 
-    void Cartridge::read_header(){
+        bool ret = false;
 
-        rom_stream.read(reinterpret_cast<char*>(&header), 0x10);
-
+        ifs.read(reinterpret_cast<char*>(&header), 0x10);
         // verify header magic word;
         if (header.NES1A[0] != 'N'
             || header.NES1A[1] != 'E'
             || header.NES1A[2] != 'S'
-            || header.NES1A[3] != 0x1a
-        )
+            || header.NES1A[3] != 0x1a  )
         {
-            printf("This is not a iNES file.\n");
+            printf("This is not an iNES file.\n");
         }
         else {
 
@@ -87,6 +64,8 @@ namespace nes {
                 info_rom_size &= 0xf00;
                 info_rom_size |= header.num_prg_rom;
                 info_rom_size *= 0x4000;
+                struct stat statbuf;
+                stat(file_path, &statbuf);
                 if (info_rom_size >= statbuf.st_size)
                     std::cout << "Notice: rom file size is smaller than inferred from header." << std::endl;
 
@@ -120,6 +99,23 @@ namespace nes {
                 }
 
                 print_info_v_iNES();
+
+
+                if (header.byte_6.trainer){
+                    //just ignore the trainer;
+                    std::cerr << "Do not support trainer." << std::endl;
+                    ret = false;
+                }
+                else {
+
+                    prg_rom.resize(kPRG_ROM_SIZE * header.num_prg_rom);
+                    ifs.read(reinterpret_cast<char*>(&prg_rom[0]), kPRG_ROM_SIZE * header.num_prg_rom);
+
+                    chr_rom.resize(kCHR_ROM_SIZE * header.num_chr_rom);
+                    ifs.read(reinterpret_cast<char*>(&chr_rom[0]), kCHR_ROM_SIZE * header.num_chr_rom);
+                    
+                    ret = true;
+                }
             }
             break;
             default  :
@@ -131,10 +127,10 @@ namespace nes {
             break;
             }
         }
-        return;
-    }
 
-    void Cartridge::load_mapper(){}
+        ifs.close();
+        return ret;
+    }
 
     void Cartridge::print_info_v_iNES(){
         std::cout << "16KB PRG-ROM banks  : "

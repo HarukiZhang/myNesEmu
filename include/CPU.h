@@ -13,7 +13,7 @@ namespace nes {
     class PPU;
 
     class CPU {
-    friend PPU;
+    friend class PPU;
     public:
 
         enum FLAG : Byte {

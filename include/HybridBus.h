@@ -23,7 +23,7 @@ namespace nes {
             else if (addr < 0x4000){}
             else return false;
         }
-        bool write
+        
     private:
         Palette *palette;
     };

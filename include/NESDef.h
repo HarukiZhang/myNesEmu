@@ -29,6 +29,7 @@ namespace nes {
     constexpr size_t kNES_HEAD_SIZE = 0x10;
     constexpr size_t kTRAINER_SIZE = 0x200;
     constexpr size_t kPRG_ROM_SIZE = 0x4000;
+    constexpr size_t kCHR_ROM_SIZE = 0x2000;
 
     //RAM for CPU, 2KB;
     typedef union _RAM {

@@ -4,6 +4,7 @@
 #include "CPU.h"
 #include "PPU.h"
 #include "Cartridge.h"
+#include "Mapper.h"
 
 namespace nes {
 
@@ -16,7 +17,8 @@ namespace nes {
     private:
         CPU *cpu = nullptr;
         PPU *ppu = nullptr;
-        Cartridge *cart = nullptr;
+        // Cartridge *cart = nullptr;  do not need to directly link to cart;
+        Mapper *mapper = nullptr;
         RAM *ram = nullptr;
         // OAM *oam = nullptr;
         // OAM_BUF *oam_buf = nullptr;
