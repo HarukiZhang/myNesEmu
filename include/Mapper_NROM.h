@@ -22,7 +22,7 @@ namespace nes {
 
         bool ppu_read(Word addr, Byte &data) override;
         bool ppu_write(Word addr, Byte data) override;
-    
+
     private:
         bool is_NROM_128 = true;//128: 1 bank; 256: two banks;
         bool has_prg_ram = false;

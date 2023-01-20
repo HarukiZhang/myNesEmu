@@ -30,6 +30,15 @@ namespace nes {
     constexpr size_t kTRAINER_SIZE = 0x200;
     constexpr size_t kPRG_ROM_SIZE = 0x4000;
     constexpr size_t kCHR_ROM_SIZE = 0x2000;
+    constexpr size_t kPRG_RAM_SIZE = 0x2000;
+
+    enum NTMirror {
+        Horizontal,
+        Vertical,
+        Single_Screen,
+        Four_screen,
+        Others
+    };
 
     //RAM for CPU, 2KB;
     typedef union _RAM {
@@ -80,9 +89,12 @@ namespace nes {
     } OAM_BUF;
 
     //palette memory
-    typedef struct _Palette {
-        Byte image_palette[kMAX_CUR_PALET];
-        Byte sprite_palette[kMAX_CUR_PALET];
+    typedef union _Palette {
+        struct {
+            Byte image_palette[kMAX_CUR_PALET];
+            Byte sprite_palette[kMAX_CUR_PALET];
+        };
+        Byte vals[kMAX_CUR_PALET * 2];
     } Palette;
 
     typedef union _PPU_CTRL {
@@ -133,6 +145,34 @@ namespace nes {
         };
         Byte vals[8];
     } PPU_REG;
+
+    typedef struct _NESHeader {
+        char NES1A[4];           //Btye 0-3
+        uint8_t num_prg_rom;     //Btye 4
+        uint8_t num_chr_rom;     //Byte 5
+        // uint8_t rom_ctrl;
+        union {                  //Byte 6
+            struct {
+                uint8_t mirror_hv : 1;//0:horizontal; 1:vertical;
+                uint8_t save_ram : 1;
+                uint8_t trainer : 1;
+                uint8_t four_screen : 1;//within cart provide extra VRAM;
+                uint8_t n_mapper_low : 4;
+            };
+            uint8_t val;
+        } byte_6;
+        union {                  //Byte 7
+            struct {
+                uint8_t vs_unisys : 1;
+                uint8_t playchoice : 1;
+                uint8_t nes_2_sign : 2;
+                uint8_t n_mapper_high : 4;
+            };
+            uint8_t val;
+        } byte_7;
+        uint8_t num_prg_ram;     //Byte 8
+        char tailBytes[7];       //Byte 9-15
+    } NESHeader;
 
 };//end nes
 

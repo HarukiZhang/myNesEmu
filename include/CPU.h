@@ -2,7 +2,6 @@
 #define CPU_H
 
 #include<string>
-#include<fstream>
 
 #include "NESDef.h"
 
@@ -42,25 +41,6 @@ namespace nes {
         void reset();
         void irq();
         void nmi();
-
-        //for test instr;
-        void clear_cycle(){cycles = 0;}
-        void print_status(std::ofstream &ofs){
-            ofs << "A:$" << std::hex << (int)A << " ";
-            ofs << "X:$" << std::hex << (int)X << " ";
-            ofs << "Y:$" << std::hex << (int)Y << " ";
-            ofs << "PC:$" << std::hex << (int)PC << " ";
-            ofs << "S:$" << std::hex << (int)S << " ";
-            if (P.N) ofs << "N";  else ofs << "n";
-            if (P.V) ofs << "V";  else ofs << "v";
-            if (P.U) ofs << "U";  else ofs << "u";
-            if (P.B) ofs << "B";  else ofs << "b";
-            if (P.D) ofs << "D";  else ofs << "d";
-            if (P.I) ofs << "I";  else ofs << "i";
-            if (P.Z) ofs << "Z";  else ofs << "z";
-            if (P.C) ofs << "C";  else ofs << "c"; ofs << " ";
-            ofs << instr_mtx[cur_opcode].name << std::endl;
-        }
 
     private:
         inline bool fetch(Word addr, Byte &data);

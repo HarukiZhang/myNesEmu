@@ -2,12 +2,13 @@
 #define MAPPER_H
 
 #include "NESDef.h"
-#include "Cartridge.h"
 
 namespace nes {
 
+    //forward declaration;
+    class Cartridge;
+
     class Mapper {
-    friend class Cartridge;
     public:
         Mapper(Cartridge &_cart);
         ~Mapper();
@@ -17,6 +18,8 @@ namespace nes {
 
         virtual bool ppu_read(Word addr, Byte &data) = 0;
         virtual bool ppu_write(Word addr, Byte data) = 0;
+
+        NTMirror get_nt_mirror();
 
     protected:
         Cartridge *cart;
