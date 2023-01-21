@@ -1,17 +1,14 @@
 #ifndef MAPPER_H
 #define MAPPER_H
 
-#include "NESDef.h"
+#include "Cartridge.h"
 
 namespace nes {
-
-    //forward declaration;
-    class Cartridge;
 
     class Mapper {
     public:
         Mapper(Cartridge &_cart);
-        ~Mapper();
+        virtual ~Mapper() = default;
 
         virtual bool cpu_read(Word addr, Byte &data) = 0;
         virtual bool cpu_write(Word addr, Byte data) = 0;
@@ -19,7 +16,7 @@ namespace nes {
         virtual bool ppu_read(Word addr, Byte &data) = 0;
         virtual bool ppu_write(Word addr, Byte data) = 0;
 
-        NTMirror get_nt_mirror();
+        NT_Mirror get_nt_mirror();
 
     protected:
         Cartridge *cart;

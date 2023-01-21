@@ -3,7 +3,7 @@
 namespace nes {
     void HybridBus::connect(Mapper *_mapp){
         mapper = _mapp;
-        ntmirror = mapper->get_nt_mirror();
+        nt_mirror = mapper->get_nt_mirror();
     }
     
     bool HybridBus::read(Word addr, Byte &data){
@@ -11,8 +11,8 @@ namespace nes {
             return mapper->ppu_read(addr, data);
         }
         else if (addr < 0x3000){
-            switch (ntmirror){
-            case NTMirror::Horizontal :
+            switch (nt_mirror){
+            case NT_Mirror::Horizontal :
                 {
                     // 0010 0000 0000 0000 -> $0000
                     // 0010 0011 1111 1111 -> $03FF
@@ -27,7 +27,7 @@ namespace nes {
                     return true;
                 }
                 break;
-            case NTMirror::Vertical :
+            case NT_Mirror::Vertical :
                 {
                     // 0010 0000 0000 0000 -> $0000
                     // 0010 0011 1111 1111 -> 0000 0011 1111 1111
@@ -41,13 +41,13 @@ namespace nes {
                     return true;
                 }
                 break;
-            case NTMirror::Single_Screen :
+            case NT_Mirror::Single_Screen :
                 {
                     data = vram.vals[addr & 0x3ff];
                     return true;
                 }
                 break;
-            case NTMirror::Four_screen :
+            case NT_Mirror::Four_screen :
                 {
                     if (addr & 0x800){
                         //high addr need to call mapper;
@@ -80,27 +80,27 @@ namespace nes {
             return mapper->ppu_write(addr, data);
         }
         else if (addr < 0x3000){
-            switch (ntmirror){
-            case NTMirror::Horizontal :
+            switch (nt_mirror){
+            case NT_Mirror::Horizontal :
                 {
                     bool coef = addr & 0x800;
                     vram.vals[(coef * 0x400) | (addr & 0x3ff)] = data;
                     return true;
                 }
                 break;
-            case NTMirror::Vertical :
+            case NT_Mirror::Vertical :
                 {
                     vram.vals[addr & 0x7ff] = data;
                     return true;
                 }
                 break;
-            case NTMirror::Single_Screen :
+            case NT_Mirror::Single_Screen :
                 {
                     vram.vals[addr & 0x3ff] = data;
                     return true;
                 }
                 break;
-            case NTMirror::Four_screen :
+            case NT_Mirror::Four_screen :
                 {
                     if (addr & 0x800){
                         //high addr need to call mapper;

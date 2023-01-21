@@ -1,6 +1,11 @@
 #include "PPU.h"
 
 namespace nes {
+    
+    void PPU::connect(HybridBus *_hb_bus){
+        hb_bus = _hb_bus;
+    }
+
     bool PPU::read_regs(Word addr, Byte &data){
         switch (addr){
             //only reg#2, 4, 7 are readable;

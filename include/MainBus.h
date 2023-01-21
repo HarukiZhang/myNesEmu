@@ -2,25 +2,30 @@
 #define MAINBUS_H
 
 #include "PPU.h"
-#include "Mapper.h"
 
 namespace nes {
+
+    //forward declaration;
+    class CPU;
 
     class MainBus {
     public:
         MainBus();
-        void connect(PPU *_ppu, Mapper *_mapp);
+        void connect(CPU *_cpu, PPU *_ppu, Mapper *_mapp);
         bool read(Word addr, Byte &data);
         bool write(Word addr, Byte data);
+
+        void DMA(Word addr);
     private:
         RAM ram;
 
+        CPU *cpu = nullptr;
         PPU *ppu = nullptr;
         Mapper *mapper = nullptr;
 
 
         //TODO: APU:
-        //TODO: DMA;
+        //TODO: DMA or direct access to OAM;
         //TODO: JoySticks IO;
     };
 

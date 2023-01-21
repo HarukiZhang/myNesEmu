@@ -14,8 +14,8 @@ namespace nes {
         ~Cartridge();
         bool read_prg_rom(Word addr, Byte &data);
         bool read_chr_rom(Word addr, Byte &data);
-        bool read_cart_ram(Word addr, Byte &data);
-        bool write_cart_ram(Word addr, Byte data);
+        bool read_prg_ram(Word addr, Byte &data);
+        bool write_prg_ram(Word addr, Byte data);
     private:
         bool load_file(const char *file_path);
         void print_info_v_iNES();
@@ -26,7 +26,7 @@ namespace nes {
     private:
         std::vector<Byte> prg_rom;
         std::vector<Byte> chr_rom;
-        std::vector<Byte> cart_ram;
+        std::vector<Byte> prg_ram;
     };
 
 };//end nes

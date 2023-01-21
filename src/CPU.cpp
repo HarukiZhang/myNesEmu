@@ -1,9 +1,5 @@
 #include "CPU.h"
 
-#include "PPU.h"
-#include "MainBus.h"
-
-
 namespace nes {
 
     CPU::CPU(){

@@ -1,13 +1,14 @@
 #include<iostream>
 
-#include "MainBus.h"
-#include "Mapper.h"
+#include "CPU.h"
 
 namespace nes {
 
     MainBus::MainBus(){}
 
-    void MainBus::connect(PPU *_ppu, Mapper *_mapp){
+    void MainBus::connect(CPU *_cpu, PPU *_ppu, Mapper *_mapp){
+        cpu = _cpu;
+        cpu->connect(this);
         ppu = _ppu;
         mapper = _mapp;
     }

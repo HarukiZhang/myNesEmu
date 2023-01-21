@@ -1,7 +1,6 @@
 #ifndef HYBRIDBUS_H
 #define HYBRIDBUS_H
 
-#include "NESDef.h"
 #include "Mapper.h"
 
 namespace nes {
@@ -15,12 +14,10 @@ namespace nes {
     private:
         VRAM vram;
         Palette palette;
-        OAM oam;
-        OAM_BUF oambuf;
 
         Mapper *mapper = nullptr;
 
-        NTMirror ntmirror;
+        NT_Mirror nt_mirror;
     };
 
 

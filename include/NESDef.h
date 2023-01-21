@@ -32,7 +32,7 @@ namespace nes {
     constexpr size_t kCHR_ROM_SIZE = 0x2000;
     constexpr size_t kPRG_RAM_SIZE = 0x2000;
 
-    enum NTMirror {
+    enum NT_Mirror {
         Horizontal,
         Vertical,
         Single_Screen,
@@ -154,8 +154,8 @@ namespace nes {
         union {                  //Byte 6
             struct {
                 uint8_t mirror_hv : 1;//0:horizontal; 1:vertical;
-                uint8_t save_ram : 1;
-                uint8_t trainer : 1;
+                uint8_t save_ram : 1;//Cartridge contains battery-backed PRG RAM ($6000-7FFF) or other persistent memory
+                uint8_t trainer : 1;//512-byte trainer at $7000-$71FF (stored before PRG data)
                 uint8_t four_screen : 1;//within cart provide extra VRAM;
                 uint8_t n_mapper_low : 4;
             };

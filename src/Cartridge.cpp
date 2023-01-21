@@ -26,13 +26,13 @@ namespace nes {
         return true;
     }
 
-    bool Cartridge::read_cart_ram(Word addr, Byte &data){
-        data = cart_ram[addr];
+    bool Cartridge::read_prg_ram(Word addr, Byte &data){
+        data = prg_ram[addr];
         return true;
     }
 
-    bool Cartridge::write_cart_ram(Word addr, Byte data){
-        cart_ram[addr] = data;
+    bool Cartridge::write_prg_ram(Word addr, Byte data){
+        prg_ram[addr] = data;
         return true;
     }
 
@@ -122,9 +122,10 @@ namespace nes {
                 chr_rom.resize(kCHR_ROM_SIZE * header.num_chr_rom);
                 ifs.read(reinterpret_cast<char*>(&chr_rom[0]), kCHR_ROM_SIZE * header.num_chr_rom);
                 
-                if (header.byte_6.save_ram){ //if has save_ram;
-                    cart_ram.resize(kPRG_RAM_SIZE);
-                    std::clog << "Save-RAM prepared." << std::endl;
+                if (header.byte_6.save_ram){
+                    //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
+                    prg_ram.resize(kPRG_RAM_SIZE);
+                    std::clog << "PRG-RAM is prepared." << std::endl;
                 }
 
                 ret = true;

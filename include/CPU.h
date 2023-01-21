@@ -3,16 +3,11 @@
 
 #include<string>
 
-#include "NESDef.h"
+#include "MainBus.h"
 
 namespace nes {
 
-    //forward declaration;
-    class MainBus;
-    class PPU;
-
     class CPU {
-    friend class PPU;
     public:
 
         enum FLAG : Byte {
