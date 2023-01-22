@@ -52,6 +52,10 @@ namespace nes {
         }
     }
 
+    OAM *PPU::get_oam(){
+        return &oam;
+    }
+
     bool PPU::obj_compare(Byte n_scanl, Byte y_coord){
         ppu_obj_comp = n_scanl;
         ppu_obj_comp -= y_coord;

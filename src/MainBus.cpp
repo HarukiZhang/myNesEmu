@@ -1,12 +1,14 @@
 #include<iostream>
 
 #include "CPU.h"
+#include "PPU.h"
+#include "MainBus.h"
 
 namespace nes {
 
     MainBus::MainBus(){}
 
-    void MainBus::connect(CPU *_cpu, PPU *_ppu, Mapper *_mapp){
+    void MainBus::connect(CPU *_cpu, PPU *_ppu, std::shared_ptr<Mapper> &_mapp){
         cpu = _cpu;
         cpu->connect(this);
         ppu = _ppu;
@@ -14,6 +16,7 @@ namespace nes {
     }
 
     bool MainBus::read(Word addr, Byte &data){
+        cycle_rw = true;
         switch (addr & 0xf000 >> 12){
         case 0x0 :
         case 0x1 :
@@ -50,6 +53,7 @@ namespace nes {
     }
 
     bool MainBus::write(Word addr, Byte data){
+        cycle_rw = false;
         switch (addr & 0xf000 >> 12){
         case 0x0 :
         case 0x1 :
@@ -85,4 +89,16 @@ namespace nes {
         }
     }
 
-};//end nes;
+    void MainBus::DMA(){
+        if (cycle_rw){
+            Word addr = dma_reg << 2;// ($4014) * $100;
+            OAM *pOAM = ppu->get_oam();
+            Byte oam_cycles = 0x200;
+            for (Word i = 0; i < 0x100; ++i){
+                pOAM[i] = ram[addr++];
+            }
+            //when to add alignment cycle;
+            cpu->dma_cycles(oam_cycles);
+        }
+    }
+}; // end nes;

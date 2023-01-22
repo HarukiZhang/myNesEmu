@@ -37,6 +37,8 @@ namespace nes {
         void irq();
         void nmi();
 
+        inline void dma_cycles(Byte cc);
+
     private:
         inline bool fetch(Word addr, Byte &data);
         inline bool store(Word addr, Byte data);

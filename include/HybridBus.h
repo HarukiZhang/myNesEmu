@@ -7,7 +7,7 @@ namespace nes {
 
     class HybridBus {
     public:
-        void connect(Mapper *_mapp);
+        void connect(std::shared_ptr<Mapper> &_mapp);
         bool read(Word addr, Byte &data);
         bool write(Word addr, Byte data);
         
@@ -15,7 +15,7 @@ namespace nes {
         VRAM vram;
         Palette palette;
 
-        Mapper *mapper = nullptr;
+        std::shared_ptr<Mapper> mapper = nullptr;
 
         NT_Mirror nt_mirror;
     };

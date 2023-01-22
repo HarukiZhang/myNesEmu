@@ -16,6 +16,7 @@ namespace nes {
         // Subject to bus conflicts: Yes, but irrelevant
     public:
         Mapper_NROM(Cartridge &_cart);
+        ~Mapper_NROM();
 
         bool cpu_read(Word addr, Byte &data) override;
         bool cpu_write(Word addr, Byte data) override;

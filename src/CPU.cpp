@@ -261,6 +261,10 @@ namespace nes {
         cycles = 8;
     }
 
+    void CPU::dma_cycles(Byte cc){
+        cycles += cc;
+    }
+
     inline bool CPU::fetch(Word addr, Byte &data){
         return mainBus->read(addr, data);
     }

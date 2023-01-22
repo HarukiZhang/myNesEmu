@@ -1,6 +1,8 @@
 #ifndef MAPPER_H
 #define MAPPER_H
 
+#include <memory>
+
 #include "Cartridge.h"
 
 namespace nes {
@@ -17,6 +19,8 @@ namespace nes {
         virtual bool ppu_write(Word addr, Byte data) = 0;
 
         NT_Mirror get_nt_mirror();
+
+        static std::shared_ptr<Mapper> create_mapper(Cartridge &cr_cart);
 
     protected:
         Cartridge *cart;

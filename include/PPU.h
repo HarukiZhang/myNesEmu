@@ -10,6 +10,7 @@ namespace nes {
         void connect(HybridBus *_hb_bus);
         bool read_regs(Word addr, Byte &data);
         bool write_regs(Word addr, Byte data);
+        inline OAM *get_oam();
     private:
         void print_frame();
         void print_scanline();

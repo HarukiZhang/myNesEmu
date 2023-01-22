@@ -12,6 +12,10 @@ namespace nes {
             has_prg_ram = true;//is this correct ?
     }
 
+    Mapper_NROM::~Mapper_NROM(){
+        //trivial: nothing to release;
+    }
+
     bool Mapper_NROM::cpu_read(Word addr, Byte &data){
         if (addr < 0x8000){//MainBus wont give addresses below $6000;
             // 0110 0000 0000 0000 - 0111 1111 1111 1111

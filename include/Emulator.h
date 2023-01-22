@@ -24,7 +24,7 @@ namespace nes {
         MainBus mbus;
         HybridBus hbus;
         Cartridge cart;
-        Mapper *mapper = nullptr;
+        std::shared_ptr<Mapper> mapper = nullptr;
     };//end class
     
 };//end nes

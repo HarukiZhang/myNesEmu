@@ -32,6 +32,10 @@ namespace nes {
     constexpr size_t kCHR_ROM_SIZE = 0x2000;
     constexpr size_t kPRG_RAM_SIZE = 0x2000;
 
+    enum Mapper_Type : Byte {
+        NROM = 0x00,
+    };
+
     enum NT_Mirror {
         Horizontal,
         Vertical,

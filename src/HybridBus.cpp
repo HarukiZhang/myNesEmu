@@ -1,7 +1,7 @@
 #include "HybridBus.h"
 
 namespace nes {
-    void HybridBus::connect(Mapper *_mapp){
+    void HybridBus::connect(std::shared_ptr<Mapper> &_mapp){
         mapper = _mapp;
         nt_mirror = mapper->get_nt_mirror();
     }

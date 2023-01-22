@@ -1,5 +1,6 @@
 #include "Mapper.h"
-#include "Cartridge.h"
+
+#include "Mapper_NROM.h"
 
 namespace nes {
 
@@ -13,6 +14,21 @@ namespace nes {
         else if (cart->header.byte_6.mirror_hv)
             return NT_Mirror::Vertical;
         else return NT_Mirror::Horizontal;
+    }
+
+    std::shared_ptr<Mapper> Mapper::create_mapper(Cartridge &cr_cart){
+        Mapper_Type n_mapper = cart->header.byte_7.n_mapper_high;
+        n_mapper <<= 4;
+        n_mapper |= cart->header.byte_6.n_mapper_low;
+
+        switch (n_mapper){
+        case Mapper_Type::NROM :
+            return std::make_shared<Mapper_NROM>(cr_cart);
+            break;
+        default :
+            return nullptr;
+            break;
+        }
     }
 
 };//end nes;
