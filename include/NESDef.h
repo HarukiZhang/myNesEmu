@@ -19,6 +19,7 @@ namespace nes {
     constexpr size_t kMAX_VRAM = 0x800;
     constexpr size_t kMAX_NAME_TBL = 0x40;
     constexpr size_t kMAX_ATTR_TBL = 0x3C0;
+    constexpr size_t kOBJ_ATTR_SIZE = 0x4;
     constexpr size_t kMAX_OBJ_ATTR = 0x40;
     constexpr size_t kMAX_OAM_BUFF = 0x8;
     constexpr size_t kMAX_CUR_PALET = 0x10;
@@ -34,148 +35,219 @@ namespace nes {
 
     enum Mapper_Type : Byte {
         NROM = 0x00,
+        MMC1 = 0x01,
+        UxROM = 0x02,
+        Mapper_003 = 0x03,
+        MMC3 = 0x04,
+        // ...
     };
 
     enum NT_Mirror {
-        Horizontal,
-        Vertical,
+        Horizontal = 0,
+        Vertical = 1,
         Single_Screen,
         Four_screen,
         Others
     };
 
+    enum NES_VER {
+        iNES_1_0 = 0x0,
+        archaic_iNES = 0x4,
+        NES_2_0 = 0x8,
+    };
+
     //RAM for CPU, 2KB;
-    typedef union _RAM {
-        struct {
-            Byte zero_page[kMAX_ZERO_PAGE];
-            Byte sys_stack[kMAX_SYS_STACK];
-            Byte inter_ram[kMAX_INTER_RAM];
-        };
-        Byte vals[kMAX_RAM];
+    typedef struct _RAM {
+        Byte zero_page[kMAX_ZERO_PAGE];
+        Byte sys_stack[kMAX_SYS_STACK];
+        Byte inter_ram[kMAX_INTER_RAM];
+
+        Byte &operator[](Word _addr){
+            return zero_page[_addr];
+        }
     } RAM;
 
+    //I/O registers in CPU addressing space, 32 Byte;
+    typedef struct _IO_REG {
+        //Pulse 1:
+        Byte sq1_vol;   //$4000 : duty cycle and volume;
+        Byte sq1_sweep; //$4001 : sweep control;
+        Byte sq1_lo;    //$4002 : low byte of period;
+        Byte sq1_hi;    //$4003 : high byte of period & length counter value;
+        //Pulse 2:
+        Byte sq2_vol;   //$4004 : duty cycle and volume;
+        Byte sq2_sweep; //$4005 : sweep control;
+        Byte sq2_lo;    //$4006 : low byte of period;
+        Byte sq2_hi;    //$4007 : high byte of period & length counter value;
+        //Triangle:
+        Byte tri_linear;//$4008 : linear counter;
+        Byte dummy0;    //$4009 : unused;
+        Byte tri_lo;    //$400A : low byte of period;
+        Byte tri_hi;    //$400B : hight byte of period & length counter value;
+        //Noise:
+        Byte noise_vol; //$400C : volume;
+        Byte dummy1;    //$400D : unused;
+        Byte noise_lo;  //$400E : period & waveform shape;
+        Byte noise_hi;  //$400F : length counter value;
+        //DMC: (APU's delta modulation channel)
+        Byte dmc_freq;  //$4010 : IRQ flag, loop flag, frequency;
+        Byte dmc_raw;   //$4011 : 7-bit DAC;
+        Byte dmc_start; //$4012 : Start address = $C000 + $40*$xx ;
+        Byte dmc_len;   //$4013 : Sample length = $10*$xx + 1 bytes (128*$xx + 8 samples);
+        //Others:
+        Byte oam_dma;   //$4014 : OAM DMA control;
+        Byte snd_chn;   //$4015 : write: sound channels enable; read: sound channels & IRQ status;
+        Byte joy_1;     //$4016 : write: joystick strobe; read: joystick 1 data;
+        Byte joy_2;     //$4017 : write: frame counter control; read: joystick 2 data;
+        //Unused:
+        Byte dummy2[0x4020 - 0x4018]; //APU and I/O functionality that is normally disabled;
+
+        Byte &operator[](Word _addr){
+            return reinterpret_cast<Byte*>(this)[_addr];
+        }
+    } IO_REG;
+
     //RAM for PPU, 2KB;
-    typedef union _VRAM {
-        struct {
-            Byte name_table_0[kMAX_NAME_TBL];
-            Byte attribute_table_0[kMAX_ATTR_TBL];
-            Byte name_table_1[kMAX_NAME_TBL];
-            Byte attribute_table_1[kMAX_ATTR_TBL];
-        };
-        Byte vals[kMAX_VRAM];
+    typedef struct _VRAM {
+        Byte name_table_0[kMAX_NAME_TBL];
+        Byte attribute_table_0[kMAX_ATTR_TBL];
+        Byte name_table_1[kMAX_NAME_TBL];
+        Byte attribute_table_1[kMAX_ATTR_TBL];
+        
+        Byte &operator[](Word _addr){
+            return name_table_0[_addr];
+        }
     } VRAM;
 
-    //object attribute entry;
+    //object attribute entry, 4 Byte;
     typedef struct _OBJ_ATTR {
         Byte y_coord_1;
         Byte index;
-        union {
-            struct {
-                Byte n_palette : 2;
-                Byte dummy0 : 3;
-                Byte prior : 1;
-                Byte flip_h : 1;
-                Byte flip_v : 1;
-            };
-            Byte val;
-        } attr;
+        //attribute Byte
+        Byte n_palette : 2;
+        Byte dummy0 : 3;
+        Byte prior : 1;
+        Byte flip_h : 1;
+        Byte flip_v : 1;
+        //attribute end
         Byte x_coord;
+
+        Byte &operator[](Word _addr){
+            return (&y_coord_1)[_addr];
+        }
     } OBJ_ATTR;
 
-    //Object Attribute Management, 256B;
+    //Object Attribute Management, 256 Byte
     typedef struct _OAM {
         OBJ_ATTR obj_attr[kMAX_OBJ_ATTR];
+
+        Byte &operator[](Word _addr){
+            return reinterpret_cast<Byte*>(this)[_addr];
+        }
     } OAM;
 
-    //secondary OAM, 32B;
+    //secondary OAM, 32 Byte;
     typedef struct _OAM_BUF {
         OBJ_ATTR obj_attr[kMAX_OAM_BUFF];
+
+        Byte &operator[](Word _addr){
+            return reinterpret_cast<Byte*>(this)[_addr];
+        }
     } OAM_BUF;
 
-    //palette memory
-    typedef union _Palette {
-        struct {
-            Byte image_palette[kMAX_CUR_PALET];
-            Byte sprite_palette[kMAX_CUR_PALET];
-        };
-        Byte vals[kMAX_CUR_PALET * 2];
+    //palette memory, 32 Byte;
+    typedef struct _Palette {
+        Byte image_palette[kMAX_CUR_PALET];
+        Byte sprite_palette[kMAX_CUR_PALET];
+
+        Byte &operator[](Word _addr){
+            return image_palette[_addr];
+        }
     } Palette;
 
-    typedef union _PPU_CTRL {
-        struct {
-            Byte NN : 2;//nametable select;
-            Byte I : 1; //increment mode;
-            Byte S : 1; //sprite tile select;
-            Byte B : 1; //background tile select;
-            Byte H : 1; //sprite height;
-            Byte P : 1; //PPU master/slave mode;
-            Byte V : 1; //NMI enable/ V-Blank enable;
-        };
-        Byte val;
+    typedef struct _PPU_CTRL {
+        Byte NN : 2;//nametable select;
+        Byte I : 1; //increment mode;
+        Byte S : 1; //sprite tile select;
+        Byte B : 1; //background tile select;
+        Byte H : 1; //sprite height;
+        Byte P : 1; //PPU master/slave mode;
+        Byte V : 1; //NMI enable/ V-Blank enable;
+
+        Byte &operator=(Byte _data){
+            return *reinterpret_cast<Byte*>(this) = _data;
+        }
     } PPU_CTRL;
 
-    typedef union _PPU_MASK {
-        struct {
-            Byte G : 1;  //greyscale;
-            Byte m : 1;  //background left column enable;
-            Byte M : 1;  //sprite left column enable;
-            Byte b : 1;  //background enable;
-            Byte s : 1;  //sprite enable;
-            Byte BGR : 3;//color emphasis;
-        };
-        Byte val;
+    typedef struct _PPU_MASK {
+        Byte G : 1;  //greyscale;
+        Byte m : 1;  //background left column enable;
+        Byte M : 1;  //sprite left column enable;
+        Byte b : 1;  //background enable;
+        Byte s : 1;  //sprite enable;
+        Byte BGR : 3;//color emphasis;
+        
+        Byte &operator=(Byte _data){
+            return *reinterpret_cast<Byte*>(this) = _data;
+        }
     } PPU_MASK;
 
-    typedef union _PPU_STATUS {
-        struct {
-            Byte dummy0 : 5;
-            Byte O : 1; //Sprite Overflow Flag;
-            Byte S : 1; //Sprite 0 Hit Flag;
-            Byte V : 1; //V-Blank Flag;
-        };
-        Byte val;
+    typedef struct _PPU_STATUS {
+        Byte dummy0 : 5;
+        Byte O : 1; //Sprite Overflow Flag;
+        Byte S : 1; //Sprite 0 Hit Flag;
+        Byte V : 1; //V-Blank Flag;
+        
+        Byte &operator=(Byte _data){
+            return *reinterpret_cast<Byte*>(this) = _data;
+        }
     } PPU_STATUS;
 
-    typedef union _PPU_REG {
-        struct {
-            PPU_CTRL ppu_ctrl;
-            PPU_MASK ppu_mask;
-            PPU_STATUS ppu_status;
-            Byte oam_addr;
-            Byte oam_data;
-            Byte ppu_scroll;
-            Byte ppu_addr;
-            Byte ppu_data;
-        };
-        Byte vals[8];
+    //PPU's registers, 8 Byte;
+    typedef struct _PPU_REG {
+        PPU_CTRL ppu_ctrl;     //$2000 : VPHB SINN : NMI enable (V), PPU master/slave (P), sprite height (H), background tile select (B), sprite tile select (S), increment mode (I), nametable select (NN);
+        PPU_MASK ppu_mask;     //$2001 : BGRs bMmG : color emphasis (BGR), sprite enable (s), background enable (b), sprite left column enable (M), background left column enable (m), greyscale (G);
+        PPU_STATUS ppu_status; //$2002 : VSO- ---- : vblank (V), sprite 0 hit (S), sprite overflow (O); read resets write pair for $2005/$2006
+        Byte oam_addr;         //$2003 : OAM read/write address;
+        Byte oam_data;         //$2004 : OAM data read/write;
+        Byte ppu_scroll;       //$2005 : fine scroll position (two writes: X scroll then Y scroll);
+        Byte ppu_addr;         //$2006 : PPU read/write address (two writes: MSB then LSB);
+        Byte ppu_data;         //$2007 : PPU data read/write
+        
+        Byte &operator[](Word _addr){
+            return reinterpret_cast<Byte*>(this)[_addr];
+        }
     } PPU_REG;
 
     typedef struct _NESHeader {
         char NES1A[4];           //Btye 0-3
-        uint8_t num_prg_rom;     //Btye 4
-        uint8_t num_chr_rom;     //Byte 5
-        // uint8_t rom_ctrl;
-        union {                  //Byte 6
-            struct {
-                uint8_t mirror_hv : 1;//0:horizontal; 1:vertical;
-                uint8_t save_ram : 1;//Cartridge contains battery-backed PRG RAM ($6000-7FFF) or other persistent memory
-                uint8_t trainer : 1;//512-byte trainer at $7000-$71FF (stored before PRG data)
-                uint8_t four_screen : 1;//within cart provide extra VRAM;
-                uint8_t n_mapper_low : 4;
-            };
-            uint8_t val;
-        } byte_6;
-        union {                  //Byte 7
-            struct {
-                uint8_t vs_unisys : 1;
-                uint8_t playchoice : 1;
-                uint8_t nes_2_sign : 2;
-                uint8_t n_mapper_high : 4;
-            };
-            uint8_t val;
-        } byte_7;
-        uint8_t num_prg_ram;     //Byte 8
+        Byte num_prg_rom;        //Btye 4
+        Byte num_chr_rom;        //Byte 5
+        //Byte 6:            <-    Byte 6
+        Byte mirror_hv : 1;//0:horizontal; 1:vertical;
+        Byte save_ram : 1;//Cartridge contains battery-backed PRG RAM ($6000-7FFF) 
+                          //or other persistent memory
+        Byte trainer : 1;//512-byte trainer at $7000-$71FF (stored before PRG data)
+        Byte four_screen : 1;//within cart provide extra VRAM;
+        Byte n_mapper_low : 4;
+        //Byte 6 end;
+        //Byte 7:            <-    Byte 7
+        Byte vs_unisys : 1;
+        Byte playchoice : 1;
+        Byte nes_2_sign : 2;
+        Byte n_mapper_high : 4;
+        //Byte 7 end;
+        Byte num_prg_ram;        //Byte 8
         char tailBytes[7];       //Byte 9-15
+
+        Byte &operator[](Word _addr){
+            return reinterpret_cast<Byte*>(this)[_addr];
+        }
+        Byte n_mapper() const {
+            Byte ret = n_mapper_high;
+            ret << 4;
+            return static_cast<Byte>(ret | n_mapper_low);
+        }
     } NESHeader;
 
 };//end nes

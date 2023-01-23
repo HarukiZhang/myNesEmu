@@ -52,9 +52,15 @@ namespace nes {
         }
     }
 
-    OAM *PPU::get_oam(){
-        return &oam;
-    }
+    // OAM *PPU::get_oam(){
+    //     return &oam;
+    // }
+    
+    // void PPU::oam_dma(PPU &_ppu, const Byte *_ram_ptr){
+    //     std::memcpy(reinterpret_cast<Byte*>(&_ppu.oam.obj_attr[0]), _ram_ptr, 0x100);
+    //     return;
+    // }
+
 
     bool PPU::obj_compare(Byte n_scanl, Byte y_coord){
         ppu_obj_comp = n_scanl;

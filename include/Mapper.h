@@ -20,7 +20,7 @@ namespace nes {
 
         NT_Mirror get_nt_mirror();
 
-        static std::shared_ptr<Mapper> create_mapper(Cartridge &cr_cart);
+        static std::shared_ptr<Mapper> create_mapper(Cartridge &r_cart);
 
     protected:
         Cartridge *cart;

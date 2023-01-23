@@ -12,8 +12,6 @@ namespace nes {
         load_file(file_path);
     };
 
-    Cartridge::~Cartridge(){}
-
     bool Cartridge::read_prg_rom(Word addr, Byte &data){
         //need mapper to give an appropriate address
         //for bank shifting;
@@ -36,6 +34,10 @@ namespace nes {
         return true;
     }
 
+    const NESHeader &Cartridge::get_header(){
+        return header;
+    }
+
     bool Cartridge::load_file(const char *file_path){
         std::ifstream ifs {file_path, std::ios_base::binary | std::ios_base::in};
         if (!ifs.is_open()){
@@ -50,7 +52,7 @@ namespace nes {
         if (header.NES1A[0] != 'N'
             || header.NES1A[1] != 'E'
             || header.NES1A[2] != 'S'
-            || header.NES1A[3] != 0x1a  )
+            || header.NES1A[3] != 0x1A  )
         {
             printf("This is not an iNES file.\n");
         }
@@ -62,10 +64,9 @@ namespace nes {
             //      If byte 7 AND $0C = $04, archaic iNES.
             //      If byte 7 AND $0C = $00, and bytes 12-15 are all 0, then iNES.
             //      Otherwise, iNES 0.7 or archaic iNES.
-            
         
-            switch (header.byte_7.val & 0xC){
-            case 0x8 :
+            switch (header.nes_2_sign){
+            case NES_VER::NES_2_0 :
             {
                 // check size of rom file comparing to the info;
                 // 12bits addr should address max to 64MB (as 16KB for each bank)
@@ -84,14 +85,14 @@ namespace nes {
                 std::clog << "NES 2.0 format is on the work." << std::endl;
             }
             break;
-            case 0x4 :
+            case NES_VER::archaic_iNES :
             {
                 std::clog << "The archaic iNES file is correctly loaded." << std::endl;
                 /* Read info according to archaic iNES standard */
                 std::clog << "Archaic iNES format is on the work." << std::endl;
             }
             break;
-            case 0x0 :
+            case NES_VER::iNES_1_0 :
             {
                 std::clog << "The iNES file is correctly loaded." << std::endl;
                 std::clog << std::endl;
@@ -110,7 +111,7 @@ namespace nes {
 
                 print_info_v_iNES();
 
-                if (header.byte_6.trainer){//if has trainer within rom file;
+                if (header.trainer){//if has trainer within rom file;
                     //just ignore the trainer;
                     ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
                     std::clog << "The trainer has been ignored." << std::endl;
@@ -122,7 +123,7 @@ namespace nes {
                 chr_rom.resize(kCHR_ROM_SIZE * header.num_chr_rom);
                 ifs.read(reinterpret_cast<char*>(&chr_rom[0]), kCHR_ROM_SIZE * header.num_chr_rom);
                 
-                if (header.byte_6.save_ram){
+                if (header.save_ram){
                     //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
                     prg_ram.resize(kPRG_RAM_SIZE);
                     std::clog << "PRG-RAM is prepared." << std::endl;
@@ -151,25 +152,23 @@ namespace nes {
         std::clog << "8 KB CHR-ROM banks  : "
             << static_cast<int>(header.num_chr_rom) << std::endl;
         std::clog << "Mirroring Type      : ";
-        if (header.byte_6.mirror_hv) std::clog << "vertical" << std::endl;
+        if (header.mirror_hv) std::clog << "vertical" << std::endl;
         else std::clog << "horizontal" << std::endl;
-        std::clog << "Save-RAM            : ";
-        if (header.byte_6.save_ram) std::clog << "Y" << std::endl;
+        std::clog << "8 KB Save/PRG-RAM   : ";
+        if (header.save_ram) std::clog << "Y" << std::endl;
         else std::clog << "N" << std::endl;
-        std::clog << "512-byte Trainer    : ";
-        if (header.byte_6.trainer) std::clog << "Y" << std::endl;
+        std::clog << "512 Byte Trainer    : ";
+        if (header.trainer) std::clog << "Y" << std::endl;
         else std::clog << "N" << std::endl;
         std::clog << "4-screeen mirroring : ";
-        if (header.byte_6.four_screen) std::clog << "Y" << std::endl;
+        if (header.four_screen) std::clog << "Y" << std::endl;
         else std::clog << "N" << std::endl;
         std::clog << "Mapper #            : "
-            << static_cast<int>(
-                (header.byte_6.val >> 4) | (header.byte_7.val & 0xf0)
-                ) << std::endl;
+            << static_cast<int>(header.n_mapper()) << std::endl;
         // Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility)
-        std::clog << "8 KB PRG-RAM        : ";
-        if (header.num_prg_ram == 0) std::clog << 1 << std::endl;
-        else std::clog << static_cast<int>(header.num_prg_ram) << std::endl;
+        // std::clog << "8 KB PRG-RAM        : ";
+        // if (header.save_ram) std::clog << "Y" << std::endl;
+        // else std::clog << "N" << std::endl;
         std::clog << std::endl;
         std::clog << "iNES header info reading complete." << std::endl;
     }

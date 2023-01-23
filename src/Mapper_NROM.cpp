@@ -6,9 +6,10 @@ namespace nes {
     Mapper_NROM::Mapper_NROM(Cartridge &_cart)
         : Mapper{_cart}
     {
-        if(_cart.header.num_prg_rom == 2)
+        const NESHeader &cr_h = _cart.get_header();
+        if(cr_h.num_prg_rom == 2)
             addr_mask = 0x7FFF;//for NROM_256;
-        if (_cart.header.byte_6.save_ram)
+        if (cr_h.save_ram)
             has_prg_ram = true;//is this correct ?
     }
 
@@ -41,7 +42,7 @@ namespace nes {
                 return Mapper::cart->write_prg_ram(addr - 0x6000, data);
             else return false;
         }
-        //it seems not writable to prg-rom and chr-rom;
+        //it should bo non-writable to prg-rom and chr-rom;
         return false;
     }
 

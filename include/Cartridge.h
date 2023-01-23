@@ -11,19 +11,19 @@ namespace nes {
     public:
         Cartridge();
         Cartridge(const char *file_path);
-        ~Cartridge();
+        
         bool read_prg_rom(Word addr, Byte &data);
         bool read_chr_rom(Word addr, Byte &data);
         bool read_prg_ram(Word addr, Byte &data);
         bool write_prg_ram(Word addr, Byte data);
+
+        inline const NESHeader &get_header();
     private:
         bool load_file(const char *file_path);
         void print_info_v_iNES();
 
-    public:
-        NESHeader header;
-
     private:
+        NESHeader header;
         std::vector<Byte> prg_rom;
         std::vector<Byte> chr_rom;
         std::vector<Byte> prg_ram;
