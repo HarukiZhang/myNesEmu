@@ -329,29 +329,33 @@ namespace nes {
     }
     
     Byte CPU::ABX(){
-        fetch(PC++, fetch_buf);
-        addr_abs = fetch_buf;
-        fetch(PC++, fetch_buf);
-        Word tmp = fetch_buf;
-        tmp <<= 8;
-        addr_abs |= tmp;
-        addr_abs += X;  //with page crossing;
-        if ( (addr_abs & 0xff00) != tmp )
-            return 1;
-        else return 0;
+        Byte ret = 0;
+        //cycle 2: read low byte / add reg X;
+        fetch(PC++, fetch_buf);  //fetch low byte;
+        addr_abs = fetch_buf & 0x00ff;
+        addr_abs += X;
+        
+        if ( (addr_abs & 0xff00) ) ret = 1;//if page crossed;
+        
+        //cycle 3: read high byte / add low result;
+        fetch(PC++, fetch_buf);  //fetch high byte;
+        addr_abs |= fetch_buf << 8;
+        return ret;
     }
 
     Byte CPU::ABY(){
-        fetch(PC++, fetch_buf);
-        addr_abs = fetch_buf;
-        fetch(PC++, fetch_buf);
-        Word tmp = fetch_buf;
-        tmp <<= 8;
-        addr_abs |= tmp;
-        addr_abs += Y;  //with page crossing;
-        if ( (addr_abs & 0xff00) != tmp )
-            return 1;
-        else return 0;
+        Byte ret = 0;
+        //cycle 2: read low byte / add reg Y;
+        fetch(PC++, fetch_buf);  //fetch low byte;
+        addr_abs = fetch_buf & 0x00ff;
+        addr_abs += Y;
+        
+        if ( (addr_abs & 0xff00) ) ret = 1;//if page crossed;
+        
+        //cycle 3: read high byte / add low result;
+        fetch(PC++, fetch_buf);  //fetch high byte;
+        addr_abs |= fetch_buf << 8;
+        return ret;
     }
     
     Byte CPU::IND(){
@@ -388,12 +392,16 @@ namespace nes {
         fetch(PC++, fetch_buf);
         addr_abs = fetch_buf;//in instr contains the zero page location
                              //of the least signif byte of 16 bit addr;
+        
         fetch(addr_abs + 1, fetch_buf);//fetch high byte first;
         Word base = fetch_buf;
         base <<= 8;
+        
         fetch(addr_abs, fetch_buf);
         base |= fetch_buf;
+        
         addr_abs = base + Y;//actual target addr by adding reg Y;
+        
         if ( (addr_abs & 0xff00) != (base & 0xff00) )
             return 1;
         else return 0;
@@ -452,11 +460,11 @@ namespace nes {
     }
     Byte CPU::BCC(){
         //REL;
-        if (P.C == 0){//if the carry flag is clear;
+        if (P.C == 0){     //if the carry flag is clear;
             addr_abs = PC + addr_rel;
-            ++cycles;
+            ++cycles;      //if branch suceeds;
             if ( (addr_abs & 0xff00) != (PC & 0xff00) )
-                ++cycles;
+                ++cycles;  //if to a new page;
             PC = addr_abs;
         }
         return 0;

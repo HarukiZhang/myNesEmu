@@ -19,7 +19,7 @@ namespace nes {
         if (cpu_halt){//cpu allows halting only when read cycles;
             OAM_DMA();
         }
-        switch (addr & 0xf000 >> 12){
+        switch ( (addr & 0xf000) >> 12){
         case 0x0 :
         case 0x1 :
             {
@@ -58,7 +58,7 @@ namespace nes {
     bool MainBus::write(Word addr, Byte data){
         //records consecutive write cycles before cpu halting successes;
         ++extra_dma_cycles;
-        switch (addr & 0xf000 >> 12){
+        switch ( (addr & 0xf000) >> 12){
         case 0x0 :
         case 0x1 :
             {
