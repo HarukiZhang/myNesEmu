@@ -88,6 +88,7 @@ namespace nes {
         } P;
 
         Byte fetch_buf;
+        Byte addr_zp0;
         Word addr_abs;
         Word addr_rel;
         Byte cur_opcode;

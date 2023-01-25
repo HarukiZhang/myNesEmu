@@ -378,33 +378,40 @@ namespace nes {
     Byte CPU::IZX(){
         //normally used in conjunction with 
         //a table of address held on zero page;
-        fetch(PC++, fetch_buf);
-        Byte tmp = fetch_buf + X;//wrap around if crossed;
-        fetch(tmp + 1, fetch_buf);//fetch high byte first;
+
+        //cycle 1: read
+        fetch(PC++, addr_zp0);
+        addr_zp0 += X;//wrap around if crossed;
+
+        //cycle 2: read
+        fetch(addr_zp0, fetch_buf);
         addr_abs = fetch_buf;
-        addr_abs <<= 8;
-        fetch(tmp, fetch_buf);
-        addr_abs |= fetch_buf;
+
+        //cycle 3: read
+        fetch(addr_zp0 + 1, fetch_buf);//fetch within zero page;
+        addr_abs = fetch_buf << 8;
+        
         return 0;
     }
     
     Byte CPU::IZY(){
-        fetch(PC++, fetch_buf);
-        addr_abs = fetch_buf;//in instr contains the zero page location
-                             //of the least signif byte of 16 bit addr;
+        //in instr contains the zero page location
+        //of the least signif byte of 16 bit addr;
+
+        //cycle 1: read
+        fetch(PC++, addr_zp0);
         
-        fetch(addr_abs + 1, fetch_buf);//fetch high byte first;
-        Word base = fetch_buf;
-        base <<= 8;
+        //cycle 2: read
+        fetch(addr_zp0, fetch_buf);
+        addr_abs = fetch_buf & 0xff;
+        addr_abs += Y;
+        Byte ret = addr_abs & 0x100 ? 1 : 0;//page cross check;
+
+        //cycle 3: read
+        fetch(addr_zp0 + 1, fetch_buf);//with zero page wrap around;
+        addr_abs += fetch_buf << 8;
         
-        fetch(addr_abs, fetch_buf);
-        base |= fetch_buf;
-        
-        addr_abs = base + Y;//actual target addr by adding reg Y;
-        
-        if ( (addr_abs & 0xff00) != (base & 0xff00) )
-            return 1;
-        else return 0;
+        return ret;
     }
 
     //==================================================================
@@ -416,6 +423,7 @@ namespace nes {
         fetch(addr_abs, fetch_buf);
         Word res = A;
         res += fetch_buf;
+        Byte fetchBuf;
         res += P.C;
         //test carry;
         setFlag(FLAG::C, res & 0x100);
@@ -782,21 +790,23 @@ namespace nes {
     }
     Byte CPU::ROL(){
         //ACCUM, ZP0, ZPX, ABS, ABX;
+        //"Bit 0 is filled with the current value of the carry flag 
+        //whilst the old bit 7 becomes the new carry flag value."
         Byte b7;
         if (cur_opcode == 0x2A){//opcode of ROL-ACCUM;
             b7 = (A & 0x80) ? 1 : 0;
-            setFlag(FLAG::C, b7);
             A <<= 1;
-            A |= b7;
+            A |= P.C;
+            setFlag(FLAG::C, b7);
             setFlag(FLAG::Z, A == 0);
             setFlag(FLAG::N, A & 0x80);
         }
         else {
             fetch(addr_abs, fetch_buf);
             b7 = (fetch_buf & 0x80) ? 1 : 0;
-            setFlag(FLAG::C, b7);
             fetch_buf <<= 1;
-            fetch_buf |= b7;
+            fetch_buf |= P.C;
+            setFlag(FLAG::C, b7);
             setFlag(FLAG::Z, fetch_buf == 0);
             setFlag(FLAG::N, fetch_buf & 0x80);
             store(addr_abs, fetch_buf);
@@ -806,21 +816,23 @@ namespace nes {
 
     Byte CPU::ROR(){
         //ACCUM, ZP0, ZPX, ABS, ABX;
+        //Bit 7 is filled with the current value of the carry flag 
+        //whilst the old bit 0 becomes the new carry flag value.
         Byte b0;
         if (cur_opcode == 0x6A){//opcode of ROR-ACCUM;
             b0 = A & 0x1;
-            setFlag(FLAG::C, b0);
             A >>= 1;
-            A |= (b0 << 7);
+            A |= (P.C << 7);
+            setFlag(FLAG::C, b0);
             setFlag(FLAG::Z, A == 0);
             setFlag(FLAG::N, b0);
         }
         else {
             fetch(addr_abs, fetch_buf);
             b0 = fetch_buf & 0x1;
-            setFlag(FLAG::C, b0);
             fetch_buf >>= 1;
-            fetch_buf |= (b0 << 7);
+            fetch_buf |= (P.C << 7);
+            setFlag(FLAG::C, b0);
             setFlag(FLAG::Z, fetch_buf == 0);
             setFlag(FLAG::N, b0);
             store(addr_abs, fetch_buf);
