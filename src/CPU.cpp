@@ -768,15 +768,14 @@ namespace nes {
     }
     Byte CPU::PHP(){
         //IMP
-        store(kSTACK_BASE + S, P.val);
+        store(kSTACK_BASE + S, (P.val | FLAG::B | FLAG::U));// <-- why?
         --S;
         return 0;
     }
     Byte CPU::PLA(){
         //IMP
         ++S;
-        fetch(kSTACK_BASE + S, fetch_buf);
-        A = fetch_buf;
+        fetch(kSTACK_BASE + S, A);
         setFlag(FLAG::Z, A == 0);
         setFlag(FLAG::N, A & 0x80);
         return 0;
@@ -785,7 +784,7 @@ namespace nes {
         //IMP
         ++S;
         fetch(kSTACK_BASE + S, fetch_buf);
-        P.val = fetch_buf;
+        P.val = fetch_buf & (~FLAG::B & ~FLAG::U);// <-- why ?
         return 0;
     }
     Byte CPU::ROL(){
