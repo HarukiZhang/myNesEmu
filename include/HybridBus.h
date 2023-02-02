@@ -20,10 +20,11 @@ namespace nes {
         VRAM vram;
         Palette palette;
 
-        std::shared_ptr<Mapper> mapper = nullptr;
         Byte &(*nt_mirror)(Word);
-
         // NT_Mirror nt_mirror; <-- no need any more;
+
+        std::shared_ptr<Mapper> mapper = nullptr;
+
     };
 
 

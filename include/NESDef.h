@@ -166,13 +166,13 @@ namespace nes {
     } Palette;
 
     typedef struct _PPU_CTRL {
-        Byte NN : 2;//nametable select;
-        Byte I : 1; //increment mode;
-        Byte S : 1; //sprite tile select;
-        Byte B : 1; //background tile select;
-        Byte H : 1; //sprite height;
-        Byte P : 1; //PPU master/slave mode;
-        Byte V : 1; //NMI enable/ V-Blank enable;
+        Byte nt_select : 2;//nametable select;
+        Byte incr_mode : 1; //increment mode;
+        Byte spr_select : 1; //sprite tile select;
+        Byte bkgr_select : 1; //background tile select;
+        Byte sprite_h : 1; //sprite height;
+        Byte agent_mode : 1; //PPU master/slave mode;
+        Byte nmi_enable : 1; //NMI enable/ V-Blank enable;
 
         Byte &operator=(Byte _data){
             return *reinterpret_cast<Byte*>(this) = _data;
@@ -180,12 +180,12 @@ namespace nes {
     } PPU_CTRL;
 
     typedef struct _PPU_MASK {
-        Byte G : 1;  //greyscale;
-        Byte m : 1;  //background left column enable;
-        Byte M : 1;  //sprite left column enable;
-        Byte b : 1;  //background enable;
-        Byte s : 1;  //sprite enable;
-        Byte BGR : 3;//color emphasis;
+        Byte greyscale : 1;  //greyscale;
+        Byte bkgr_col_enable : 1;  //background left column enable;
+        Byte spr_col_enable : 1;  //sprite left column enable;
+        Byte bkgr_enable : 1;  //background enable;
+        Byte spr_enable : 1;  //sprite enable;
+        Byte color_emphasis : 3;//color emphasis;
         
         Byte &operator=(Byte _data){
             return *reinterpret_cast<Byte*>(this) = _data;
@@ -194,9 +194,9 @@ namespace nes {
 
     typedef struct _PPU_STATUS {
         Byte dummy0 : 5;
-        Byte O : 1; //Sprite Overflow Flag;
-        Byte S : 1; //Sprite 0 Hit Flag;
-        Byte V : 1; //V-Blank Flag;
+        Byte sprite_overflow : 1; //Sprite Overflow Flag;
+        Byte sprite_hit : 1; //Sprite 0 Hit Flag;
+        Byte vblank_flag : 1; //V-Blank Flag;
         
         Byte &operator=(Byte _data){
             return *reinterpret_cast<Byte*>(this) = _data;
@@ -218,6 +218,50 @@ namespace nes {
             return reinterpret_cast<Byte*>(this)[_addr];
         }
     } PPU_REG;
+
+    //PPU internal registers for scrolling, defined by loopy;
+    typedef union _LOOPY_REG {
+        struct {
+            //coarse_x * coarse_y can address 1 KB NameTable;
+            Word coarse_x : 5;//0-31 x-axis within NameTable;(unit Byte)
+            Word coarse_y : 5;//0-31 y-axis within NameTable; 
+            Word nt_select : 2;//selcet from 2 1KB-NameTable;
+            Word fine_y : 3;//fine_x * fine_y address 8*8 pixels within a tile;
+            Word dummy0 : 1;//unused bit;
+        };
+        struct {
+            Byte low_byte;
+            Byte high_byte : 6;
+            Byte msb : 1;
+            Byte dummy1 : 1;
+        };
+
+        Word &operator=(_LOOPY_REG &val){
+            return *reinterpret_cast<Word*>(this) = *reinterpret_cast<Word*>(&val);
+        }
+    } LOOPY_REG;
+
+    // typedef struct _LOOPY_REG {
+    //     Word coarse_x : 5;
+    //     Word coarse_y : 5;
+    //     Word nt_select : 2;
+    //     Word fine_y : 3;
+    //     Word dummy0 : 1;
+
+    //     Word &operator=(Word val){
+    //         return *reinterpret_cast<Word*>(this) = val;
+    //     }
+    //     Byte &get_low(){
+    //         return *reinterpret_cast<Byte*>(this);
+    //     }
+    //     Byte &get_high(){
+    //         return *(reinterpret_cast<Byte*>(this) + 1);
+    //     }
+    //     Byte &get_msb(){
+    //         return 
+    //     }
+
+    // } LOOPY_REG;
 
     typedef struct _NESHeader {
         char NES1A[4];           //Btye 0-3

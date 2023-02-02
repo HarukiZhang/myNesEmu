@@ -15,6 +15,7 @@ namespace nes {
         bool read_regs(Word addr, Byte &data);
         bool write_regs(Word addr, Byte data);
         // inline friend void oam_dma(PPU &_ppu, const Byte *_ram_ptr);//only allowed use by DMA;
+        void clock();
     private:
         void print_frame();
         void print_scanline();
@@ -26,10 +27,13 @@ namespace nes {
         OAM oam;
         OAM_BUF oam_buf;
         
-        Byte ppu_gen_latch;
-
         Word ppu_obj_comp;//object evaluation comparator reg;
         Word obj_eval_ul;//object evalutaion upper limit;
+        
+        LOOPY_REG vram_addr;//current vram address;
+        LOOPY_REG temp_addr;//temp vram addr, or as the address of the top left onscreen tile;
+        Byte fine_x;//fine x scroll; low 3 bits address 8 pixels;
+        bool is_first_write = false;//toggle: 1 = after 1st write; 0 = after 2nd write / init;
 
         HybridBus *hb_bus = nullptr;
     };

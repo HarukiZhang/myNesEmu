@@ -26,25 +26,19 @@ namespace nes {
     private:
         RAM ram;//ram for CPU;
         IO_REG io_regs;
-        // union IO_Regs {
-        //     struct {
-        //         Byte apu_regs[0x14];
-        //         Byte dma_reg;       //$4014
-        //         Byte audio_channel; //$4015
-        //         Byte joystick_1;    //$4016
-        //         Byte joystick_2;    //$4017
-        //     };
-        //     Byte vals[0x18];
-        // } io_regs;
 
-        CPU *cpu = nullptr;
-        PPU *ppu = nullptr;
-        std::shared_ptr<Mapper> mapper = nullptr;
-        
         // bool cycle_rw = false;//true: read cycle; false: write cycle;
         //   ^---- deprecated;
         bool cpu_halt = false;//used by OAM_DMA;
         Byte extra_dma_cycles = 0;//used by OAM_DMA;
+
+        //cpu pointer is used for informing cpu:
+        //how many dma extra cycles counted,
+        //and interrupts;
+        CPU *cpu = nullptr;
+        PPU *ppu = nullptr;
+        std::shared_ptr<Mapper> mapper = nullptr;
+        
     };
 
 };//end nes
