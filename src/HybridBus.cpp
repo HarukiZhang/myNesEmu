@@ -37,6 +37,7 @@ namespace nes {
 
     bool HybridBus::write(Word addr, Byte data){
         if (addr < 0x2000){
+            //Note: some cartridges may contain RAM that can be written;
             return mapper->ppu_write(addr, data);
         }
         else if (addr < 0x3000){

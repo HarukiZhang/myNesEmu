@@ -24,6 +24,8 @@ namespace nes {
     constexpr size_t kMAX_OAM_BUFF = 0x8;
     constexpr size_t kMAX_CUR_PALET = 0x10;
 
+    constexpr Word kPALETTE_BASE = 0x3F00;
+
     constexpr size_t kSPR_HEIGHT_8 = 0x8;
     constexpr size_t kSPR_HEIGHT_16 = 0x10;
 
@@ -235,9 +237,41 @@ namespace nes {
             Byte msb : 1;
             Byte dummy1 : 1;
         };
-
-        Word &operator=(_LOOPY_REG &val){
-            return *reinterpret_cast<Word*>(this) = *reinterpret_cast<Word*>(&val);
+        Word val;//used as a 14-bits VRAM addr;
+        
+        void incr_scroll_x(bool render_enabled){
+            if (render_enabled){
+                if (coarse_x == 31){
+                    coarse_x = 0;
+                    nt_select ^= 0x1;
+                }
+                else ++coarse_x;
+            }
+        }
+        void incr_scroll_y(bool render_enabled){
+            if (render_enabled){
+                if (fine_y < 7) ++fine_y;
+                else {
+                    //fine_y == 7 indicates a tile is completely rendered;
+                    //so it is time to pick up the next tile;
+                    fine_y = 0;
+                    if (coarse_y == 29){
+                        coarse_y = 0;
+                        nt_select ^= 0b10;
+                    }
+                    else if (coarse_y == 31) coarse_y = 0;
+                    else ++coarse_y;
+                }
+            }
+        }
+        void transfer_addr_x(_LOOPY_REG &reg){
+            coarse_x = reg.coarse_x;
+            nt_select |= reg.nt_select & 0x1;
+        }
+        void transfer_addr_y(_LOOPY_REG &reg){
+            coarse_y = reg.coarse_y;
+            fine_y = reg.fine_y;
+            nt_select |= reg.nt_select & 0b10;
         }
     } LOOPY_REG;
 

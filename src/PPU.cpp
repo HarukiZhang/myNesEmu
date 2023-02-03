@@ -10,12 +10,26 @@ namespace nes {
         switch (addr & 0x7){
             //only reg#2, 4, 7 are readable;
         case 2 : //$2002 : PPU status reg;
-            data = ppu_regs.ppu_status;
-            is_first_write = false;//reset;
+            //only upper 3 bits of ppu_status is effective;
+            //lower 5 bits is the "noise" from ppu data buffer;
+            data = (ppu_regs.ppu_status & 0xe0) | (ppu_regs.ppu_data & 0x1f);
+            //clear vblank flag;
+            ppu_regs.ppu_status.vblank_flag = 0;
+            //reset address write toggle;
+            is_first_write = false;
             break;
         case 4 : //$2004 : OAM data reg;
+            data = ppu_regs.oam_data;
+            break;
         case 7 : //$2007 : PPU memory data;
-            data = ppu_regs[addr];
+            //vram reading has one cycle delay;
+            //however palette memory is small so no delay;
+            data = ppu_regs.ppu_data;
+            this->read(vram_addr.val, ppu_regs.ppu_data);
+            if (vram_addr.val >= kPALETTE_BASE)
+                data = ppu_regs.ppu_data;
+            //all read from ppu_data automatically increment vram_addr;
+            vram_addr.val += (ppu_regs.ppu_ctrl.incr_mode ? 32 : 1);
             break;
         default:
             //reading a "write-only" reg returns the latch's
@@ -58,12 +72,15 @@ namespace nes {
             }
             else {
                 temp_addr.low_byte = data;//all 8 bits;
-                vram_addr = temp_addr;//After temp_addr is updated, contents copied into vram_addr;
+                vram_addr.val = temp_addr.val;//After temp_addr is updated, contents copied into vram_addr;
             }
             is_first_write = !is_first_write;
             break;
         case 7 : //$2007 : PPU data reg;
             ppu_regs.ppu_data = data;
+            this->write(vram_addr.val, data);
+            //all write to ppu_data automatically increment vram_addr;
+            vram_addr.val += (ppu_regs.ppu_ctrl.incr_mode ? 32 : 1);
             break;
         default:
             return false;
@@ -72,8 +89,49 @@ namespace nes {
         return true;
     }
 
-    void PPU::clock(){
+    bool PPU::read(Word addr, Byte &data){
+        return hb_bus->read(addr, data);
+    }
 
+    bool PPU::write(Word addr, Byte data){
+        return hb_bus->write(addr, data);
+    }
+
+    void PPU::clock(){
+        if (scanline < 240){//0, 1, 2, ... , 239; total=240;
+            //TODO;
+        }
+        else if (scanline == 240){
+            //do nothing;
+        }
+        else if (scanline < 261){//241, 242, ... , 260; total = 20;
+            if (scanline == 241 && cycle = 1){
+                ppu_regs.ppu_status.vblank_flag = 1;
+                if (ppu_regs.ppu_ctrl.nmi_enable)
+                    nmi_out = true;//expect MainBus to find out;
+            }
+        }
+        else {//scanline == 261 or -1;
+            if (cycle == 1) ppu_regs.ppu_status.vblank_flag = 0;
+
+            //TODO: dummy fetch for cycle 1-256;
+
+            //TODO: if (cycle >= 321 && cycle <= 338) fetch_bkgr_tile(Word cycle);
+
+            if (cycle == 256)
+                vram_addr.incr_scroll_y(ppu_regs.ppu_mask.bkgr_enable || ppu_regs.ppu_mask.spr_enable);
+            else if (cycle == 257)
+                vram_addr.transfer_addr_x(temp_addr);
+            else if (cycle >= 280 && cycle < 305)
+                vram_addr.transfer_addr_y(temp_addr);//why need transfer for so many cycles?
+        }
+
+        ++cycle;
+        if (cycle >= 341){
+            cycle = 0;
+            ++scanline;
+            if (scanline >= 262) scanline = 0;
+        }
     }
 
     // OAM *PPU::get_oam(){
