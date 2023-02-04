@@ -37,6 +37,8 @@ namespace nes {
         void irq();
         void nmi();
 
+        inline bool complete();
+
         inline void dma_cycles(Byte cc);
 
     private:
@@ -87,12 +89,13 @@ namespace nes {
             Byte val;
         } P;
 
+        Counter cycles;
+
         Byte fetch_buf;
         Byte addr_zp0;
         Word addr_abs;
         Word addr_rel;
         Byte cur_opcode;
-        Byte cycles;
 
         struct INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
 

@@ -261,6 +261,10 @@ namespace nes {
         cycles = 8;
     }
 
+    inline bool CPU::complete(){
+        return cycles == 0;
+    }
+
     void CPU::dma_cycles(Byte cc){
         cycles += cc;
     }

@@ -7,6 +7,7 @@ namespace nes {
 
     class HybridBus {
     public:
+        HybridBus();
         void connect(std::shared_ptr<Mapper> &_mapp);
         bool read(Word addr, Byte &data);
         bool write(Word addr, Byte data);

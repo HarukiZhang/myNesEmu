@@ -25,11 +25,12 @@ namespace nes {
         void DMC_DMA();
         void clock();
         inline void check_nmi();
+        void reset();
     private:
         RAM ram;//ram for CPU;
         IO_REG io_regs;
 
-        size_t sys_clock;
+        Counter sys_clock;
 
         // bool cycle_rw = false;//true: read cycle; false: write cycle;
         //   ^---- deprecated;

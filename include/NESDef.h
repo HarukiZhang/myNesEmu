@@ -7,6 +7,7 @@ namespace nes {
 
     using Word = std::uint16_t;
     using Byte = std::uint8_t;
+    using Counter = unsigned long long;
 
     constexpr Word kMAX_INSTR_MTX_SIZE = 0x100;  //max size of instruction matrix;
 
@@ -209,20 +210,19 @@ namespace nes {
     } PPU_STATUS;
 
     //PPU's registers, 8 Byte;
-    typedef struct _PPU_REG {
-        PPU_CTRL ppu_ctrl;     //$2000 : VPHB SINN : NMI enable (V), PPU master/slave (P), sprite height (H), background tile select (B), sprite tile select (S), increment mode (I), nametable select (NN);
-        PPU_MASK ppu_mask;     //$2001 : BGRs bMmG : color emphasis (BGR), sprite enable (s), background enable (b), sprite left column enable (M), background left column enable (m), greyscale (G);
-        PPU_STATUS ppu_status; //$2002 : VSO- ---- : vblank (V), sprite 0 hit (S), sprite overflow (O); read resets write pair for $2005/$2006
-        Byte oam_addr;         //$2003 : OAM read/write address;
-        Byte oam_data;         //$2004 : OAM data read/write;
-        Byte ppu_scroll;       //$2005 : fine scroll position (two writes: X scroll then Y scroll);
-        Byte ppu_addr;         //$2006 : PPU read/write address (two writes: MSB then LSB);
-        Byte ppu_data;         //$2007 : PPU data read/write
-        
-        Byte &operator[](Word _addr){
-            return reinterpret_cast<Byte*>(this)[_addr];
-        }
-    } PPU_REG;
+    // typedef struct _PPU_REG {
+    //     PPU_CTRL ppu_ctrl;     //$2000 : VPHB SINN : NMI enable (V), PPU master/slave (P), sprite height (H), background tile select (B), sprite tile select (S), increment mode (I), nametable select (NN);
+    //     PPU_MASK ppu_mask;     //$2001 : BGRs bMmG : color emphasis (BGR), sprite enable (s), background enable (b), sprite left column enable (M), background left column enable (m), greyscale (G);
+    //     PPU_STATUS ppu_status; //$2002 : VSO- ---- : vblank (V), sprite 0 hit (S), sprite overflow (O); read resets write pair for $2005/$2006
+    //     Byte oam_addr;         //$2003 : OAM read/write address;
+    //     Byte oam_data;         //$2004 : OAM data read/write;
+    //     Byte ppu_scroll;       //$2005 : fine scroll position (two writes: X scroll then Y scroll);
+    //     Byte ppu_addr;         //$2006 : PPU read/write address (two writes: MSB then LSB);
+    //     Byte ppu_data;         //$2007 : PPU data read/write 
+    //     Byte &operator[](Word _addr){
+    //         return reinterpret_cast<Byte*>(this)[_addr];
+    //     }
+    // } PPU_REG;
 
     //PPU internal register format for scrolling, defined by loopy;
     typedef union _LOOPY_REG {
@@ -235,14 +235,37 @@ namespace nes {
             Word dummy0 : 1;//unused bit;
         };
         struct {
-            Byte low_byte;
-            Byte high_byte : 6;
-            Byte msb : 1;
-            Byte dummy1 : 1;
+            Word low_byte;// 8;
+            Word high_byte : 6;
+            Word msb : 1;
+            Word dummy1 : 1;
+        };
+        struct {
+            Word nt_fetch_addr : 12;
+            Word dummy2 : 4;
+        };
+        struct {
+            Word dummy3 : 2;
+            Word at_x : 3;
+            Word dummy4 : 2;
+            Word at_y : 3;
+            Word dummy5 : 6;
         };
         Word val;//used as a 14-bits VRAM addr;
         
-        void incr_scroll_x(bool render_enabled){
+        Word get_nt_addr(){
+            // 0x2000 | (SL YYYYY XXXXX)
+            return kNAME_TBL_BASE | nt_fetch_addr;
+        }
+        Word get_at_addr(){
+            //base address of attribute table : 0x23C0;
+            //nt_select keep its position to select table;
+            //since the area of attribute tile is more coarse than pattern tile
+            //only the upper 3 bits of coarse_y are used to address;
+            //so as do the upeer 3 bits of coarse_x;
+            return kATTR_TBL_BASE | (nt_select << 10) | (at_y << 3) | at_x;
+        }
+        void inc_x(bool render_enabled){
             if (render_enabled){
                 //Note: incrementing x has to be separated from incrementing y;
                 //because when reaching the boundary of one name table,
@@ -256,7 +279,7 @@ namespace nes {
                 else ++coarse_x;
             }
         }
-        void incr_scroll_y(bool render_enabled){
+        void inc_y(bool render_enabled){
             if (render_enabled){
                 //y coordinate should only be incremented according to rendering routine;
                 //but not be influenced by increment of x coordinate;
@@ -274,38 +297,16 @@ namespace nes {
                 }
             }
         }
-        void transfer_addr_x(_LOOPY_REG &reg){
+        void transfer_x(_LOOPY_REG &reg){
             coarse_x = reg.coarse_x;
             nt_select |= reg.nt_select & 0x1;
         }
-        void transfer_addr_y(_LOOPY_REG &reg){
+        void transfer_y(_LOOPY_REG &reg){
             coarse_y = reg.coarse_y;
             fine_y = reg.fine_y;
             nt_select |= reg.nt_select & 0b10;
         }
     } LOOPY_REG;
-
-    // typedef struct _LOOPY_REG {
-    //     Word coarse_x : 5;
-    //     Word coarse_y : 5;
-    //     Word nt_select : 2;
-    //     Word fine_y : 3;
-    //     Word dummy0 : 1;
-
-    //     Word &operator=(Word val){
-    //         return *reinterpret_cast<Word*>(this) = val;
-    //     }
-    //     Byte &get_low(){
-    //         return *reinterpret_cast<Byte*>(this);
-    //     }
-    //     Byte &get_high(){
-    //         return *(reinterpret_cast<Byte*>(this) + 1);
-    //     }
-    //     Byte &get_msb(){
-    //         return 
-    //     }
-
-    // } LOOPY_REG;
 
     typedef struct _NESHeader {
         char NES1A[4];           //Btye 0-3

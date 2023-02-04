@@ -142,15 +142,9 @@ namespace nes {
         cpu->dma_cycles(3);
     }
     void MainBus::clock(){
-        cpu->clock();
-        
         ppu->clock();
-        check_nmi();
-        ppu->clock();
-        check_nmi();
-        ppu->clock();
-        check_nmi();
-
+        if (sys_clock % 3 == 0)
+            cpu->clock();
 
         ++sys_clock;
     }
@@ -160,5 +154,12 @@ namespace nes {
             ppu->nmi_out = false;
             cpu->nmi();
         }
+    }
+    
+    void MainBus::reset(){
+        sys_clock = 0;
+        cpu_halt = false;//used by OAM_DMA;
+        cpu->reset();
+        ppu->reset();
     }
 }; // end nes;

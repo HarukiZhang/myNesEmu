@@ -1,6 +1,8 @@
 #include "HybridBus.h"
 
 namespace nes {
+    HybridBus::HybridBus(){}
+
     void HybridBus::connect(std::shared_ptr<Mapper> &_mapp){
         mapper = _mapp;
     }
