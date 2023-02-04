@@ -12,22 +12,12 @@ namespace nes {
         bool write(Word addr, Byte data);
     
     private:
-        Byte &mirror_horizontal(Word addr);
-        Byte &mirror_vertical(Word addr);
-        Byte &mirror_single_screen(Word addr);
-        Byte &mirror_four_screen(Word addr);
-    private:
         VRAM vram;
         Palette palette;
-
-        Byte &(*nt_mirror)(Word);
-        // NT_Mirror nt_mirror; <-- no need any more;
 
         std::shared_ptr<Mapper> mapper = nullptr;
 
     };
-
-
 
 };//end nes
 

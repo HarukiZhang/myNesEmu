@@ -11,6 +11,10 @@ namespace nes {
             addr_mask = 0x7FFF;//for NROM_256;
         if (cr_h.save_ram)
             has_prg_ram = true;//is this correct ?
+        
+        //Fixed H or V, controlled by solder pads (*V only)
+        Mapper::nt_mirror_map = cr_h.mirror_hv ? 
+            &Mapper::mirror_vertical : &Mapper::mirror_horizontal;
     }
 
     Mapper_NROM::~Mapper_NROM(){
