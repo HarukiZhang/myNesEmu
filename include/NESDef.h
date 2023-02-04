@@ -8,32 +8,34 @@ namespace nes {
     using Word = std::uint16_t;
     using Byte = std::uint8_t;
 
-    constexpr size_t kMAX_INSTR_MTX_SIZE = 0x100;
+    constexpr Word kMAX_INSTR_MTX_SIZE = 0x100;  //max size of instruction matrix;
 
-    constexpr size_t kMAX_ZERO_PAGE = 0x100;
-    constexpr size_t kMAX_SYS_STACK = 0x100;
-    constexpr size_t kSTACK_BASE = 0x100;
-    constexpr size_t kMAX_INTER_RAM = 0x600;
-    constexpr size_t kMAX_RAM = 0x800;
+    constexpr Word kMAX_ZERO_PAGE = 0x100;       //max size of zero page;
+    constexpr Word kMAX_SYS_STACK = 0x100;       //max size of system stack;
+    constexpr Word kSTACK_BASE = 0x100;          //base address of system stack;
+    constexpr Word kMAX_INTER_RAM = 0x600;       //max size of internal assigned RAM;
+    constexpr Word kMAX_RAM = 0x800;             //max size of physical CPU RAM;
 
-    constexpr size_t kMAX_VRAM = 0x800;
-    constexpr size_t kMAX_NAME_TBL = 0x40;
-    constexpr size_t kMAX_ATTR_TBL = 0x3C0;
-    constexpr size_t kOBJ_ATTR_SIZE = 0x4;
-    constexpr size_t kMAX_OBJ_ATTR = 0x40;
-    constexpr size_t kMAX_OAM_BUFF = 0x8;
-    constexpr size_t kMAX_CUR_PALET = 0x10;
+    constexpr Word kMAX_VRAM = 0x800;            //max size of PPU Vedio RAM;
+    constexpr Word kMAX_NAME_TBL = 0x3C0;        //max size of name table byte;
+    constexpr Word kMAX_ATTR_TBL = 0x40;         //max size of attribute table byte;
+    constexpr Word kOBJ_ATTR_SIZE = 0x4;         //size of one object attribute entry, byte;
+    constexpr Word kMAX_OBJ_ATTR = 0x40;         //max number of object attribute entry within OAM;
+    constexpr Word kMAX_OAM_BUFF = 0x8;          //max number of object attribute entry within secondary OAM buffer;
+    constexpr Word kMAX_CUR_PALET = 0x10;        //size of one palette memory for background/sprite;
 
-    constexpr Word kPALETTE_BASE = 0x3F00;
+    constexpr Word kNAME_TBL_BASE = 0x2000;      //base address of name table;
+    constexpr Word kATTR_TBL_BASE = 0x23C0;      //base address of attribute table;
+    constexpr Word kPALETTE_BASE = 0x3F00;       //base address of palette memory;
 
-    constexpr size_t kSPR_HEIGHT_8 = 0x8;
-    constexpr size_t kSPR_HEIGHT_16 = 0x10;
+    constexpr Word kSPR_HEIGHT_8 = 0x8;          //constant value of the sprite height;
+    constexpr Word kSPR_HEIGHT_16 = 0x10;        //constant value of the sprite height;
 
-    constexpr size_t kNES_HEAD_SIZE = 0x10;
-    constexpr size_t kTRAINER_SIZE = 0x200;
-    constexpr size_t kPRG_ROM_SIZE = 0x4000;
-    constexpr size_t kCHR_ROM_SIZE = 0x2000;
-    constexpr size_t kPRG_RAM_SIZE = 0x2000;
+    constexpr Word kNES_HEAD_SIZE = 0x10;        //size of header of iNES 1.0 file format;
+    constexpr Word kTRAINER_SIZE = 0x200;        //size of trainer of iNES 1.0 file format;
+    constexpr Word kPRG_ROM_SIZE = 0x4000;       //size of programable-ROM of iNES 1.0 file format;
+    constexpr Word kCHR_ROM_SIZE = 0x2000;       //size of character-ROM of iNES 1.0 file format;;
+    constexpr Word kPRG_RAM_SIZE = 0x2000;       //size of programable-RAM of iNES 1.0 file format;
 
     enum Mapper_Type : Byte {
         NROM = 0x00,
@@ -44,6 +46,7 @@ namespace nes {
         // ...
     };
 
+    //name table mirroring;
     enum NT_Mirror {
         Horizontal = 0,
         Vertical = 1,
@@ -173,7 +176,7 @@ namespace nes {
         Byte spr_select : 1; //sprite tile select;
         Byte bkgr_select : 1; //background tile select;
         Byte sprite_h : 1; //sprite height;
-        Byte agent_mode : 1; //PPU master/slave mode;
+        Byte slave_mode : 1; //PPU master/slave mode;
         Byte nmi_enable : 1; //NMI enable/ V-Blank enable;
 
         Byte &operator=(Byte _data){
@@ -221,7 +224,7 @@ namespace nes {
         }
     } PPU_REG;
 
-    //PPU internal registers for scrolling, defined by loopy;
+    //PPU internal register format for scrolling, defined by loopy;
     typedef union _LOOPY_REG {
         struct {
             //coarse_x * coarse_y can address 1 KB NameTable;
@@ -241,6 +244,11 @@ namespace nes {
         
         void incr_scroll_x(bool render_enabled){
             if (render_enabled){
+                //Note: incrementing x has to be separated from incrementing y;
+                //because when reaching the boundary of one name table,
+                //it is not necessarily that coarse_y should be incremented;
+                //rather, when camera scrolling crossed two nametable fields,
+                //address should jump to the adjacent nametable according to mirroring;
                 if (coarse_x == 31){
                     coarse_x = 0;
                     nt_select ^= 0x1;
@@ -250,6 +258,8 @@ namespace nes {
         }
         void incr_scroll_y(bool render_enabled){
             if (render_enabled){
+                //y coordinate should only be incremented according to rendering routine;
+                //but not be influenced by increment of x coordinate;
                 if (fine_y < 7) ++fine_y;
                 else {
                     //fine_y == 7 indicates a tile is completely rendered;

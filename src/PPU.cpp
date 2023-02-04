@@ -89,11 +89,11 @@ namespace nes {
         return true;
     }
 
-    bool PPU::read(Word addr, Byte &data){
+    inline bool PPU::read(Word addr, Byte &data){
         return hb_bus->read(addr, data);
     }
 
-    bool PPU::write(Word addr, Byte data){
+    inline bool PPU::write(Word addr, Byte data){
         return hb_bus->write(addr, data);
     }
 
@@ -121,7 +121,7 @@ namespace nes {
             if (cycle == 256)
                 vram_addr.incr_scroll_y(ppu_regs.ppu_mask.bkgr_enable || ppu_regs.ppu_mask.spr_enable);
             else if (cycle == 257)
-                vram_addr.transfer_addr_x(temp_addr);
+                vram_addr.transfer_addr_x(temp_addr);//reset nt_select bit for x-axis;
             else if (cycle >= 280 && cycle < 305)
                 vram_addr.transfer_addr_y(temp_addr);//why need transfer for so many cycles?
         }
@@ -131,6 +131,28 @@ namespace nes {
             cycle = 0;
             ++scanline;
             if (scanline >= 262) scanline = 0;
+        }
+    }
+
+    void PPU::fetch_bkgr_tile(){
+        switch (cycle & 0x7){
+        case 0 ://for 8th cycles; but not for the absolute 0 cycle. which is idle;
+            vram_addr.incr_scroll_x(ppu_regs.ppu_mask.bkgr_enable || ppu_regs.ppu_mask.spr_enable);
+            break;
+        case 1 ://fetch name table byte;
+            break;
+        case 2 ://just do nothing;
+            break;
+        case 3 ://fetch attribute table byte;
+            break;
+        case 4 ://just do nothing;
+            break;
+        case 5 ://fetch background tile low byte;
+            break;
+        case 6 ://just do nothing;
+            break;
+        default://for 7th cycles : fetch background tile high byte;
+            break;
         }
     }
 

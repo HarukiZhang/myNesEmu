@@ -23,9 +23,13 @@ namespace nes {
         void OAM_DMA();
         //TODO: DMC DMA fucntion;
         void DMC_DMA();
+        void clock();
+        inline void check_nmi();
     private:
         RAM ram;//ram for CPU;
         IO_REG io_regs;
+
+        size_t sys_clock;
 
         // bool cycle_rw = false;//true: read cycle; false: write cycle;
         //   ^---- deprecated;

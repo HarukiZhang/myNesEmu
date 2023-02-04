@@ -19,6 +19,7 @@ namespace nes {
         inline bool write(Word addr, Byte data);
         void clock();
     private:
+        void fetch_bkgr_tile();
         void print_frame();
         void print_scanline();
         bool fetch(Word addr, Byte &data);

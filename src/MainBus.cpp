@@ -141,4 +141,24 @@ namespace nes {
 
         cpu->dma_cycles(3);
     }
+    void MainBus::clock(){
+        cpu->clock();
+        
+        ppu->clock();
+        check_nmi();
+        ppu->clock();
+        check_nmi();
+        ppu->clock();
+        check_nmi();
+
+
+        ++sys_clock;
+    }
+
+    inline void MainBus::check_nmi(){
+        if (ppu->nmi_out){
+            ppu->nmi_out = false;
+            cpu->nmi();
+        }
+    }
 }; // end nes;
