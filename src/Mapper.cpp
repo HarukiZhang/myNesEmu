@@ -1,10 +1,12 @@
+#include<iostream>
+
 #include "Mapper.h"
 
 #include "Mapper_NROM.h"
 
 namespace nes {
 
-    Mapper::Mapper(Cartridge &_cart) : cart{&_cart}{}
+    Mapper::Mapper(Cartridge& _cart) : nt_mirror_map{nullptr}, cart{ &_cart }{}
 
     std::shared_ptr<Mapper> Mapper::create_mapper(Cartridge &r_cart){
         switch ( r_cart.get_header().n_mapper() ){
@@ -12,12 +14,13 @@ namespace nes {
             return std::make_shared<Mapper_NROM>(r_cart);
             break;
         default :
+            std::cerr << "Mapper other than 000 is not support now" << std::endl;
             return nullptr;
             break;
         }
     }
 
-    inline Word Mapper::get_nt_mirror(Word addr){
+    Word Mapper::get_nt_mirror(Word addr){
         return (this->*nt_mirror_map)(addr);
     }
 

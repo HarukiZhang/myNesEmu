@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "CPU.h"
 
 namespace nes {
@@ -163,6 +165,8 @@ namespace nes {
                 instr_mtx[i].cycles = 2;
             }
         }
+
+        std::clog << "CPU instructions loading complete" << std::endl;
     }
 
     CPU::~CPU(){}
@@ -184,13 +188,15 @@ namespace nes {
 
             INSTR &cur_instr = instr_mtx[cur_opcode];
 
+            std::clog << cur_instr.name  << " ";
+
             cycles = cur_instr.cycles;
-            Byte addi_cc1 = (this->*cur_instr.addrMode)();//why use this->*
+            Byte addi_cc1 = (this->*cur_instr.addrMode)();
             Byte addi_cc2 = (this->*cur_instr.operate)();
 
             //additional cycles;
             cycles += (addi_cc1 & addi_cc2);
-            //what will determine whether there's an additional cycles?
+
         }
         cycles--;
         return;
@@ -261,7 +267,7 @@ namespace nes {
         cycles = 8;
     }
 
-    inline bool CPU::complete(){
+    bool CPU::complete(){
         return cycles == 0;
     }
 
@@ -288,29 +294,40 @@ namespace nes {
     Byte CPU::IMP(){
         //this addressing mode includes both Implicit mode 
         //and Accumulator mode;
+        std::clog << std::endl;
         return 0;
     }
 
     Byte CPU::IMM(){
         addr_abs = PC++;
+
+        Byte immediate = 0;
+        fetch(PC - 1, immediate);
+        std::clog << "$" << std::hex << (int)immediate << std::endl;
         return 0;
     }
 
     Byte CPU::ZP0(){
         fetch(PC++, fetch_buf);
         addr_abs = fetch_buf;
+
+        std::clog << "$" << std::hex << (int)fetch_buf << std::endl;
         return 0;
     }
 
     Byte CPU::ZPX(){
         fetch(PC++, fetch_buf);
         addr_abs = (fetch_buf + X) & 0xff;//discard carry;
+
+        std::clog << "$" << std::hex << (int)fetch_buf << ",X" << std::endl;
         return 0;
     }
 
     Byte CPU::ZPY(){
         fetch(PC++, fetch_buf);
         addr_abs = (fetch_buf + Y) & 0xff;//discard carry;
+
+        std::clog << "$" << std::hex << (int)fetch_buf << ",Y" << std::endl;
         return 0;
     }
 
@@ -319,6 +336,8 @@ namespace nes {
         addr_rel = fetch_buf;
         if (addr_rel & 0x80)//check the sign bit;
             addr_rel |= 0xff00;//manually convert to negative Word;
+
+        std::clog << "$" << std::hex << (int)addr_rel << std::endl;
         return 0;
     }
     
@@ -329,36 +348,51 @@ namespace nes {
         Word tmp = fetch_buf;
         tmp <<= 8;
         addr_abs |= tmp;
+
+        std::clog << "$" << std::hex << (int)addr_abs << std::endl;
         return 0;
     }
     
     Byte CPU::ABX(){
+        Word temp = 0;
         Byte ret = 0;
         //cycle 2: read low byte / add reg X;
         fetch(PC++, fetch_buf);  //fetch low byte;
         addr_abs = fetch_buf & 0x00ff;
         addr_abs += X;
+
+        temp = fetch_buf;
         
         if ( (addr_abs & 0xff00) ) ret = 1;//if page crossed;
         
         //cycle 3: read high byte / add low result;
         fetch(PC++, fetch_buf);  //fetch high byte;
         addr_abs |= fetch_buf << 8;
+
+        temp |= fetch_buf << 8;
+        std::clog << "$" << std::hex << (int)temp << ",X" << std::endl;
+
         return ret;
     }
 
     Byte CPU::ABY(){
+        Word temp = 0;
         Byte ret = 0;
         //cycle 2: read low byte / add reg Y;
         fetch(PC++, fetch_buf);  //fetch low byte;
         addr_abs = fetch_buf & 0x00ff;
         addr_abs += Y;
+
+        temp = fetch_buf;
         
         if ( (addr_abs & 0xff00) ) ret = 1;//if page crossed;
         
         //cycle 3: read high byte / add low result;
         fetch(PC++, fetch_buf);  //fetch high byte;
         addr_abs |= fetch_buf << 8;
+
+        temp |= fetch_buf << 8;
+        std::clog << "$" << std::hex << (int)temp << ",Y" << std::endl;
         return ret;
     }
     
@@ -368,6 +402,8 @@ namespace nes {
         fetch(PC++, fetch_buf);
         Word hi = fetch_buf;
         hi <<= 8;
+
+        std::clog << "($" << std::hex << (int)(hi | lo) << ")" << std::endl;
         //there's an original cpu hardware bug:
         //the addition of lo + 1 will discard the carry,
         //which means indirect JMP instr will fail;
@@ -385,6 +421,9 @@ namespace nes {
 
         //cycle 1: read
         fetch(PC++, addr_zp0);
+        
+        std::clog << "($" << std::hex << (int)addr_zp0 << ",X)" << std::endl;
+
         addr_zp0 += X;//wrap around if crossed;
 
         //cycle 2: read
@@ -408,6 +447,9 @@ namespace nes {
         //cycle 2: read
         fetch(addr_zp0, fetch_buf);
         addr_abs = fetch_buf & 0xff;
+
+        std::clog << "($" << std::hex << (int)addr_abs << "),Y" << std::endl;
+
         addr_abs += Y;
         Byte ret = addr_abs & 0x100 ? 1 : 0;//page cross check;
 
@@ -427,7 +469,6 @@ namespace nes {
         fetch(addr_abs, fetch_buf);
         Word res = A;
         res += fetch_buf;
-        Byte fetchBuf;
         res += P.C;
         //test carry;
         setFlag(FLAG::C, res & 0x100);

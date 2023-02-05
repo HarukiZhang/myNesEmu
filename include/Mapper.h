@@ -21,7 +21,7 @@ namespace nes {
         static std::shared_ptr<Mapper> create_mapper(Cartridge &r_cart);
 
         //name table mirroring mapping
-        inline Word get_nt_mirror(Word addr);
+        Word get_nt_mirror(Word addr);
 
         Word mirror_horizontal(Word addr);
         Word mirror_vertical(Word addr);

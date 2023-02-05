@@ -16,7 +16,6 @@ namespace nes {
             mbus.connect(&cpu, &ppu, mapper);
             ppu.connect(&hbus);
             //TODO: according to cart, allocate a Mapper;
-            mapper = new Mapper_NROM{cart};
         }
     private:
         CPU cpu;

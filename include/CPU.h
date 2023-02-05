@@ -37,9 +37,9 @@ namespace nes {
         void irq();
         void nmi();
 
-        inline bool complete();
+        bool complete();
 
-        inline void dma_cycles(Byte cc);
+        void dma_cycles(Byte cc);
 
     private:
         inline bool fetch(Word addr, Byte &data);

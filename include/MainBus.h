@@ -20,17 +20,18 @@ namespace nes {
         //TODO: JoySticks IO functions;
         
         //TODO: DMA or direct access to OAM;
-        void OAM_DMA();
+        //void OAM_DMA();
         //TODO: DMC DMA fucntion;
-        void DMC_DMA();
+        //void DMC_DMA();
         void clock();
         inline void check_nmi();
         void reset();
+
     private:
         RAM ram;//ram for CPU;
-        IO_REG io_regs;
+        //IO_REG io_regs;
 
-        Counter sys_clock;
+        Counter sys_clock = 0;//count global ppu clock cycles;
 
         // bool cycle_rw = false;//true: read cycle; false: write cycle;
         //   ^---- deprecated;
