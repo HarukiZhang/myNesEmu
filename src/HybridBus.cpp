@@ -15,6 +15,10 @@ namespace nes {
             data = vram[mapper->get_nt_mirror(addr)];
             return true;
         }
+        else if (addr < 0x3F00) {
+            data = NULL;
+            return false;
+        }
         else {// addr < 0x4000;
             //assume that user wont address $3000 - $3EFF;
             data = palette[addr - 0x3F00];
@@ -30,6 +34,10 @@ namespace nes {
         else if (addr < 0x3000){
             vram[mapper->get_nt_mirror(addr)] = data;
             return true;
+        }
+        else if (addr < 0x3F00) {
+            //nowhere to store;
+            return false;
         }
         else {// addr < 0x4000;
             //assume that user wont address $3000 - $3EFF;

@@ -8,6 +8,35 @@ namespace nes {
 
     Cartridge::Cartridge(){}
 
+    Cartridge::~Cartridge() {
+        if (!prg_ram.empty()) {
+            std::ofstream ofs{ "D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\save_ram_out", std::ios_base::out | std::ios_base::trunc };
+            if (!ofs.is_open()) {
+                std::clog << "Output file open failed." << std::endl;
+                return;
+            }
+
+            //    Text output
+            //    ---------- -
+            //    Tests generally print information on screen.They also output the same
+            //    text as a zero - terminted string beginning at $6004, allowing examination
+            //    of output in an NSF player, or a NES emulator without a working PPU.The
+            //    tests also work properly if the PPU doesn't set the VBL flag properly or
+            //    doesn't implement it at all.
+            //    The final result is displayed and also written to $6000.Before the test
+            //    starts, $80 is written there so you can tell when it's done. If a test
+            //    needs the NES to be reset, it writes $81 there.In addition, $DE $B0 $G1
+            //    is written to $6001 - $6003 to allow an emulator to detect when a test is
+            //    being run, as opposed to some other NES program.In NSF builds, the
+            //    final result is also reported via a series of beeps(see below).
+
+            ofs << reinterpret_cast<char*>(&prg_ram[0x4]);
+            ofs << std::endl;
+
+            ofs.close();
+        }
+    }
+
     Cartridge::Cartridge(const char *file_path){
         load_file(file_path);
     };
@@ -38,6 +67,29 @@ namespace nes {
         return header;
     }
 
+    bool Cartridge::load_test_rom(const char* file_path, bool create_prg_ram)
+    {
+        std::ifstream ifs{ file_path, std::ios_base::binary | std::ios_base::in };
+        if (!ifs.is_open()) {
+            std::cerr << "Test ROM file open : failed." << std::endl;
+            return false;
+        }
+        bool ret = false;
+        ifs.read(reinterpret_cast<char*>(&header), kNES_HEAD_SIZE);
+        if (header.NES1A[0] != 'N' || header.NES1A[1] != 'E' || header.NES1A[2] != 'S' || header.NES1A[3] != 0x1A){
+            printf("This is not an iNES file.\n");
+            ret = false;
+        }
+        else {
+            print_info_v_iNES();
+            load_content(ifs, true);
+            ret = true;
+        }
+
+        ifs.close();
+        return ret;
+    }
+
     bool Cartridge::load_file(const char *file_path){
         std::ifstream ifs {file_path, std::ios_base::binary | std::ios_base::in};
         if (!ifs.is_open()){
@@ -55,6 +107,7 @@ namespace nes {
             || header.NES1A[3] != 0x1A  )
         {
             printf("This is not an iNES file.\n");
+            ret = false;
         }
         else {
 
@@ -83,6 +136,8 @@ namespace nes {
                 std::clog << "The NES 2.0 file is correctly loaded." << std::endl;
                 /* Read info according to NES 2.0 standard */
                 std::clog << "NES 2.0 format is on the work." << std::endl;
+
+                ret = false;
             }
             break;
             case NES_VER::archaic_iNES :
@@ -90,6 +145,8 @@ namespace nes {
                 std::clog << "The archaic iNES file is correctly loaded." << std::endl;
                 /* Read info according to archaic iNES standard */
                 std::clog << "Archaic iNES format is on the work." << std::endl;
+                
+                ret = false;
             }
             break;
             case NES_VER::iNES_1_0 :
@@ -111,23 +168,7 @@ namespace nes {
 
                 print_info_v_iNES();
 
-                if (header.trainer){//if has trainer within rom file;
-                    //just ignore the trainer;
-                    ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
-                    std::clog << "The trainer has been ignored." << std::endl;
-                }
-
-                prg_rom.resize(kPRG_ROM_SIZE * header.num_prg_rom);
-                ifs.read(reinterpret_cast<char*>(&prg_rom[0]), kPRG_ROM_SIZE * header.num_prg_rom);
-
-                chr_rom.resize(kCHR_ROM_SIZE * header.num_chr_rom);
-                ifs.read(reinterpret_cast<char*>(&chr_rom[0]), kCHR_ROM_SIZE * header.num_chr_rom);
-                
-                if (header.save_ram){
-                    //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
-                    prg_ram.resize(kPRG_RAM_SIZE);
-                    std::clog << "PRG-RAM is prepared." << std::endl;
-                }
+                load_content(ifs);
 
                 ret = true;
             }
@@ -137,6 +178,8 @@ namespace nes {
                 std::clog << "The archaic iNES / iNES 0.7 file is correctly loaded." << std::endl;
                 /* Read info according to archaic iNES standard */
                 std::clog << "Archaic iNES / iNES 0.7 format is on the work." << std::endl;
+                
+                ret = false;
             }
             break;
             }
@@ -171,6 +214,29 @@ namespace nes {
         // else std::clog << "N" << std::endl;
         std::clog << std::endl;
         std::clog << "iNES header info reading complete." << std::endl;
+    }
+
+    void Cartridge::load_content(std::ifstream& ifs, bool create_ram){
+        if (header.trainer) {//if has trainer within rom file;
+            //just ignore the trainer;
+            ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
+            std::clog << "The trainer has been ignored." << std::endl;
+        }
+
+        size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom;
+        prg_rom.resize(size_prg_rom);
+        ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
+
+        size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom;
+        chr_rom.resize(size_chr_rom);
+        ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
+
+        if (header.save_ram || create_ram) {
+            //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
+            prg_ram.resize(kPRG_RAM_SIZE);
+            std::clog << "PRG-RAM is prepared." << std::endl;
+            if (create_ram) header.save_ram = 1;//to inform mapper;
+        }
     }
 
 };//end nes

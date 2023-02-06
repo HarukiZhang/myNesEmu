@@ -11,6 +11,8 @@ namespace nes {
     public:
         Cartridge();
         Cartridge(const char *file_path);
+        ~Cartridge();
+
         bool load_file(const char* file_path);
 
         bool read_prg_rom(Word addr, Byte &data);
@@ -19,11 +21,24 @@ namespace nes {
         bool write_prg_ram(Word addr, Byte data);
 
         const NESHeader &get_header();
+
+        //debug:
+        bool load_test_rom(const char* file_path, bool create_prg_ram = true);
+        Byte get_prg_ram(Word addr) {
+            if (!prg_ram.empty()) {
+                return prg_ram[addr];
+            }
+            return NULL;
+        }
+
     private:
         void print_info_v_iNES();
+        void load_content(std::ifstream& ifs, bool create_ram = false);
 
     private:
         NESHeader header;
+        size_t size_prg_rom = 0;
+        size_t size_chr_rom = 0;
         std::vector<Byte> prg_rom;
         std::vector<Byte> chr_rom;
         std::vector<Byte> prg_ram;

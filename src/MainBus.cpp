@@ -16,6 +16,14 @@ namespace nes {
         mapper = _mapp;
     }
 
+    void MainBus::clock() {
+        ppu->clock();
+        if (sys_clock % 3 == 0)
+            cpu->clock();
+
+        ++sys_clock;
+    }
+    
     bool MainBus::read(Word addr, Byte &data){
         switch ( (addr & 0xf000) >> 12){
         case 0x0 :
@@ -42,6 +50,8 @@ namespace nes {
                 //    //TODO: Expansion ROM
                 //    return false;
                 //}
+                data = NULL;
+                return false;
             }
             break;
         default  :
@@ -87,6 +97,7 @@ namespace nes {
                 //    //TODO: Expansion ROM
                 //    return false;
                 //}
+                return false;
             }
             break;
         default  :
@@ -137,14 +148,6 @@ namespace nes {
 
     //    cpu->dma_cycles(3);
     //}
-
-    void MainBus::clock(){
-        ppu->clock();
-        if (sys_clock % 3 == 0)
-            cpu->clock();
-
-        ++sys_clock;
-    }
 
     inline void MainBus::check_nmi(){
         if (ppu->nmi_out){

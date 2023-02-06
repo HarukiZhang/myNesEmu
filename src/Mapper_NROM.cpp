@@ -22,7 +22,8 @@ namespace nes {
     }
 
     bool Mapper_NROM::cpu_read(Word addr, Byte &data){
-        if (addr < 0x8000){//MainBus wont give addresses below $6000;
+        //MainBus wont give addresses below $6000;
+        if (addr < 0x8000){
             // 0110 0000 0000 0000 - 0111 1111 1111 1111
             // -> $0000            - 0001 1111 1111 1111
             if (has_prg_ram)//              <-- is this if-judge necessary?
@@ -41,12 +42,13 @@ namespace nes {
     }
 
     bool Mapper_NROM::cpu_write(Word addr, Byte data){
+        //MainBus wont give addresses below $6000;
         if (addr < 0x8000){
             if (has_prg_ram)
                 return Mapper::cart->write_prg_ram(addr - 0x6000, data);
             else return false;
         }
-        //it should bo non-writable to prg-rom and chr-rom;
+        //it should be non-writable to prg-rom and chr-rom;
         return false;
     }
 

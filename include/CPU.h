@@ -2,6 +2,7 @@
 #define CPU_H
 
 #include<string>
+#include<map>
 
 #include "MainBus.h"
 
@@ -9,25 +10,6 @@ namespace nes {
 
     class CPU {
     public:
-
-        enum FLAG : Byte {
-            C = 0b1,
-            Z = 0b10,
-            I = 0b100,
-            D = 0b1000,
-            B = 0b10000,
-            U = 0b100000,
-            V = 0b1000000,
-            N = 0b10000000,
-        };
-
-        struct INSTR {
-            std::string name;
-            Byte (CPU::*operate)(void) = nullptr;
-            Byte (CPU::*addrMode)(void) = nullptr;
-            Byte cycles = 0;
-        };
-
         CPU();
         ~CPU();
         void connect(MainBus *_bus);
@@ -41,10 +23,12 @@ namespace nes {
 
         void dma_cycles(Byte cc);
 
+        std::map<Word, std::string> disassemble(Word addr_start, Word addr_stop);
+
     private:
         inline bool fetch(Word addr, Byte &data);
         inline bool store(Word addr, Byte data);
-        inline void setFlag(FLAG flag, bool test);
+        inline void set_flag(FLAG flag, bool test);
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
@@ -69,35 +53,33 @@ namespace nes {
         Byte TAY(); Byte TSX(); Byte TXA(); Byte TXS(); Byte TYA(); 
 
         Byte XXX();//illegal opcodes catcher;
+
+    public://temporarily set to public for dubugging;
+        Byte A = 0;    //accumulator;
+        Byte X = 0, Y = 0; //index regs x, y;
+        Word PC = 0;   //program counter;
+        Byte S = 0;    //stack pointer;
+        STATUS_FLAGS P; //status flags;
     private:
-        Byte A;    //accumulator;
-        Byte X, Y; //index regs x, y;
-        Word PC;   //program counter;
-        Byte S;    //stack pointer;
-        //cpu status flags reg;
-        union STATUS_FLAGS {
-            struct {
-                Byte C : 1;      //carry;              bit0
-                Byte Z : 1;      //zero
-                Byte I : 1;      //interrupt disable
-                Byte D : 1;      //decimal mode
-                Byte B : 1;      //break command
-                Byte U : 1;      //unused
-                Byte V : 1;      //overflow
-                Byte N : 1;      //negative;           bit7
-            };
-            Byte val;
-        } P;
+        Counter cycles = 0;
 
-        Counter cycles;
+        Byte fetch_buf = 0;
+        Byte addr_zp0 = 0;
+        Word addr_abs = 0;
+        Word addr_rel = 0;
+        Byte cur_opcode = 0;
 
-        Byte fetch_buf;
-        Byte addr_zp0;
-        Word addr_abs;
-        Word addr_rel;
-        Byte cur_opcode;
+        Word temp_word = 0;
+        Byte temp_byte = 0;
 
-        struct INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
+        //CPU instruction entry;
+        struct INSTR {
+            std::string name;
+            Byte(CPU::* operate)(void) = nullptr;
+            Byte(CPU::* addrMode)(void) = nullptr;
+            Byte cycles = 0;
+        };
+        INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
 
         MainBus *mainBus = nullptr;
 

@@ -38,6 +38,18 @@ namespace nes {
 	constexpr Word kCHR_ROM_SIZE = 0x2000;       //size of character-ROM of iNES 1.0 file format;;
 	constexpr Word kPRG_RAM_SIZE = 0x2000;       //size of programable-RAM of iNES 1.0 file format;
 
+	//CPU status flag;
+	enum FLAG : Byte {
+		C = 0b1,
+		Z = 0b10,
+		I = 0b100,
+		D = 0b1000,
+		B = 0b10000,
+		U = 0b100000,
+		V = 0b1000000,
+		N = 0b10000000,
+	};
+
 	enum Mapper_Type : Byte {
 		NROM = 0x00,
 		MMC1 = 0x01,
@@ -62,19 +74,38 @@ namespace nes {
 		NES_2_0 = 0x8,
 	};
 
+	//CPU status flag register;
+	union STATUS_FLAGS {
+		struct {
+			Byte C : 1;      //carry;              bit0
+			Byte Z : 1;      //zero
+			Byte I : 1;      //interrupt disable
+			Byte D : 1;      //decimal mode
+			Byte B : 1;      //break command
+			Byte U : 1;      //unused
+			Byte V : 1;      //overflow
+			Byte N : 1;      //negative;           bit7
+		};
+		Byte val;
+
+		STATUS_FLAGS() {
+			val = 0;
+		}
+	};
+
 	//RAM for CPU, 2KB;
-	typedef struct _RAM {
-		Byte zero_page[kMAX_ZERO_PAGE];
-		Byte sys_stack[kMAX_SYS_STACK];
-		Byte inter_ram[kMAX_INTER_RAM];
+	struct RAM {
+		Byte zero_page [kMAX_ZERO_PAGE];
+		Byte sys_stack [kMAX_SYS_STACK];
+		Byte inter_ram [kMAX_INTER_RAM];
 
 		Byte &operator[](Word _addr){
 			return zero_page[_addr];
 		}
-	} RAM;
+	};
 
 	//I/O registers in CPU addressing space, 32 Byte;
-	typedef struct _IO_REG {
+	struct IO_REG {
 		//Pulse 1:
 		Byte sq1_vol;   //$4000 : duty cycle and volume;
 		Byte sq1_sweep; //$4001 : sweep control;
@@ -111,22 +142,22 @@ namespace nes {
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}
-	} IO_REG;
+	};
 
 	//RAM for PPU, 2KB;
-	typedef struct _VRAM {
-		Byte name_table_0[kMAX_NAME_TBL];
-		Byte attribute_table_0[kMAX_ATTR_TBL];
-		Byte name_table_1[kMAX_NAME_TBL];
-		Byte attribute_table_1[kMAX_ATTR_TBL];
+	struct VRAM {
+		Byte name_table_0        [kMAX_NAME_TBL];
+		Byte attribute_table_0   [kMAX_ATTR_TBL];
+		Byte name_table_1		 [kMAX_NAME_TBL];
+		Byte attribute_table_1	 [kMAX_ATTR_TBL];
 		
 		Byte &operator[](Word _addr){
 			return name_table_0[_addr];
 		}
-	} VRAM;
+	};
 
 	//object attribute entry, 4 Byte;
-	typedef struct _OBJ_ATTR {
+	struct OBJ_ATTR {
 		Byte y_coord_1;
 		Byte index;
 		//attribute Byte
@@ -141,35 +172,35 @@ namespace nes {
 		Byte &operator[](Word _addr){
 			return (&y_coord_1)[_addr];
 		}
-	} OBJ_ATTR;
+	};
 
 	//Object Attribute Management, 256 Byte
-	typedef struct _OAM {
+	struct OAM {
 		OBJ_ATTR obj_attr[kMAX_OBJ_ATTR];
 
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}
-	} OAM;
+	};
 
 	//secondary OAM, 32 Byte;
-	typedef struct _OAM_BUF {
+	struct OAM_BUF {
 		OBJ_ATTR obj_attr[kMAX_OAM_BUFF];
 
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}
-	} OAM_BUF;
+	};
 
 	//palette memory, 32 Byte;
-	typedef struct _Palette {
+	struct Palette {
 		Byte image_palette[kMAX_CUR_PALET];
 		Byte sprite_palette[kMAX_CUR_PALET];
 
 		Byte &operator[](Word _addr){
 			return image_palette[_addr];
 		}
-	} Palette;
+	};
 
 	struct PPU_CTRL {
 		Byte nt_select : 2;//nametable select;
@@ -323,7 +354,7 @@ namespace nes {
 		}
 	};
 
-	typedef struct _NESHeader {
+	struct NESHeader {
 		char NES1A[4];           //Btye 0-3
 		Byte num_prg_rom;        //Btye 4
 		Byte num_chr_rom;        //Byte 5
@@ -352,7 +383,7 @@ namespace nes {
 			ret << 4;
 			return static_cast<Byte>(ret | n_mapper_low);
 		}
-	} NESHeader;
+	};
 
 };//end nes
 
