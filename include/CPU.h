@@ -39,7 +39,7 @@ namespace nes {
         Byte ABY(); Byte IND(); Byte IZX(); Byte IZY();
         //accumulator addressing could be included in IMP();
 
-        //Opcodes
+        //Official opcodes:
         Byte ADC(); Byte AND(); Byte ASL(); Byte BCC(); Byte BCS(); 
         Byte BEQ(); Byte BIT(); Byte BMI(); Byte BNE(); Byte BPL(); 
         Byte BRK(); Byte BVC(); Byte BVS(); Byte CLC(); Byte CLD(); 
@@ -52,7 +52,16 @@ namespace nes {
         Byte SEI(); Byte STA(); Byte STX(); Byte STY(); Byte TAX(); 
         Byte TAY(); Byte TSX(); Byte TXA(); Byte TXS(); Byte TYA(); 
 
-        Byte XXX();//illegal opcodes catcher;
+        //Internal function for easy implementation of opcodes:
+        Byte ASL_A(); //ASL {ACCUM}
+        Byte LSR_A(); //LSR {ACCUM}
+        Byte ROL_A(); //ROL {ACCUM}
+        Byte ROR_A(); //ROR {ACCUM}
+        void adc(); //helper function for ADC() and SBC();
+        void cmp(Byte reg); //helper funtion for CMP(), CPX(), CPY();
+
+        //Unofficial opcodes catcher:
+        Byte XXX();
 
     public://temporarily set to public for dubugging;
         Byte A = 0;    //accumulator;

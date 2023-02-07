@@ -1,5 +1,9 @@
+#include <cstdio>
 #include <iostream>
+#include <fstream>
 #include <chrono>
+#include <queue>
+#include <string>
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -19,6 +23,10 @@ nes::Cartridge cart;
 std::shared_ptr<nes::Mapper> mapp;
 
 std::map<nes::Word, std::string> map_asm;
+std::queue<std::string> trace_que;
+
+constexpr int MAX_TRACE_LINES = 0xFFFF;
+constexpr int MAX_INSTR_LINES = 0xFFFFF;
 
 TP t0, t1;
 SPAN span;
@@ -35,8 +43,8 @@ PHASE phase = PHASE::initiation;
 size_t global_counter = 0;
 size_t cycles = 0;
 
-inline bool initiate(){
-	if (cart.load_test_rom("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\01-implied.nes")) {
+inline bool initiate(const char* file_path){
+	if (cart.load_test_rom(file_path)) {
 		std::clog << "Cartridge loading : success" << std::endl;
 	}
 	else {
@@ -80,11 +88,14 @@ inline bool doClock() {
 		}
 		break;
 	case PHASE::waitToLoad:
-		if (cart.get_prg_ram(1) == 0xDE && cart.get_prg_ram(2) == 0xB0 && cart.get_prg_ram(3) == 0x61)
+		if (cart.get_prg_ram(1) == 0xDE && cart.get_prg_ram(2) == 0xB0 && cart.get_prg_ram(3) == 0x61) {
+			std::clog << "Test is running ..." << std::endl;
 			phase = PHASE::testRunning;
+		}
 		break;
 	case PHASE::testRunning:
-		if (cart.get_prg_ram(1) != 0xDE || cart.get_prg_ram(2) != 0xB0 || cart.get_prg_ram(3) != 0x61) {
+		if (cart.get_prg_ram(0) != 0x80) {
+			std::clog << "Test is done." << std::endl;
 			phase = PHASE::testDone;
 			return true;
 		}
@@ -104,23 +115,74 @@ inline bool doClock() {
 	return ret;
 }
 
-inline void print_fps() {
+//print instructions per sec;
+inline void print_ips() {
 	span = std::chrono::duration_cast<SPAN>(t1 - t0);
 	if (1.0 - span.count() < 0.0) {
-		std::clog << (global_counter - cycles) << " fps";
-		std::clog << "\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
+		std::cout << "i" << std::setw(10) << global_counter << " : " << std::setw(10) << (global_counter - cycles) << " fps";
+		std::cout << "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 		t0 = t1;
 		cycles = global_counter;
 	}
 }
 
+inline bool log_trace() {
+	if (trace_que.size() >= MAX_TRACE_LINES)
+		return true;//Emu should stop due to trace limit reaches;
+	auto it = map_asm.find(cpu.PC);
+	if (it != map_asm.end()) {
+		trace_que.push(it->second);
+	}
+	//no else;
+	return false;//Emu could continue;
+}
+
+inline void output_trace(const char* o_path) {
+	if (!trace_que.empty()) {
+		std::ofstream ofs{ o_path, std::ios_base::trunc };
+		if (ofs.is_open()) {
+			while (!trace_que.empty()) {
+				ofs << trace_que.front() << std::endl;
+				trace_que.pop();
+			}
+		}
+		ofs.close();
+	}
+}
+
 int main() {
-	initiate();
+	FILE* redef;
+	freopen_s(&redef, "D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\test_cpu_instr.log", "a", stderr);
+	std::clog << std::endl;
+	std::clog << "============================================" << std::endl;
+	std::clog << "Test: 11-special" << std::endl;
+	
+	
+	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\rom_singles\\11-special.nes"))
+		return 0;
+
+	bool bTraceStop = false;
 	t0 = SCLK::now();
 	while (true) {
-		if (doClock()) return 0;
+		if (doClock()) break;
 		t1 = SCLK::now();
-		print_fps();
+		//if (phase == PHASE::testRunning)
+		//	bTraceStop = log_trace();
+		//if (bTraceStop) {
+		//	std::clog << "Test stopped due to trace limit reaches." << std::endl;
+		//	break;
+		//}
+		print_ips();
+
+		//if (global_counter >= 0xfffff) {
+		//	std::clog << "Test stopped due to number of instruction limit ($"
+		//		<< std::hex << MAX_INSTR_LINES << ") reaches." << std::endl;
+		//	break;
+		//}
 	}
+
+	//output_trace("D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\trace_log.log");
+
+	if (redef) fclose(redef);
 	return 0;
 }

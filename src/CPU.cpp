@@ -11,7 +11,7 @@ namespace nes {
         instr_mtx[	0x06	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZP0	, 	5	};
         instr_mtx[	0x08	] = {	"PHP"	, 	&CPU::PHP	, 	&CPU::IMP	, 	3	};
         instr_mtx[	0x09	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x0A	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::IMP	, 	2	};
+        instr_mtx[	0x0A	] = {	"ASL"	, 	&CPU::ASL_A	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x0D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABS	, 	4	};
         instr_mtx[	0x0E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABS	, 	6	};
         instr_mtx[	0x10	] = {	"BPL"	, 	&CPU::BPL	, 	&CPU::REL	, 	2	};
@@ -20,6 +20,7 @@ namespace nes {
         instr_mtx[	0x16	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0x18	] = {	"CLC"	, 	&CPU::CLC	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x19	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0x1A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0x1D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0x1E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABX	, 	7	};
         instr_mtx[	0x20	] = {	"JSR"	, 	&CPU::JSR	, 	&CPU::ABS	, 	6	};
@@ -29,7 +30,7 @@ namespace nes {
         instr_mtx[	0x26	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZP0	, 	5	};
         instr_mtx[	0x28	] = {	"PLP"	, 	&CPU::PLP	, 	&CPU::IMP	, 	4	};
         instr_mtx[	0x29	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x2A	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::IMP	, 	2	};
+        instr_mtx[	0x2A	] = {	"ROL"	, 	&CPU::ROL_A	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x2C	] = {	"BIT"	, 	&CPU::BIT	, 	&CPU::ABS	, 	4	};
         instr_mtx[	0x2D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABS	, 	4	};
         instr_mtx[	0x2E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABS	, 	6	};
@@ -39,6 +40,7 @@ namespace nes {
         instr_mtx[	0x36	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0x38	] = {	"SEC"	, 	&CPU::SEC	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x39	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0x3A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0x3D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0x3E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABX	, 	7	};
         instr_mtx[	0x40	] = {	"RTI"	, 	&CPU::RTI	, 	&CPU::IMP	, 	6	};
@@ -47,7 +49,7 @@ namespace nes {
         instr_mtx[	0x46	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZP0	, 	5	};
         instr_mtx[	0x48	] = {	"PHA"	, 	&CPU::PHA	, 	&CPU::IMP	, 	3	};
         instr_mtx[	0x49	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x4A	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::IMP	, 	2	};
+        instr_mtx[	0x4A	] = {	"LSR"	, 	&CPU::LSR_A	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x4C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::ABS	, 	3	};
         instr_mtx[	0x4D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABS	, 	4	};
         instr_mtx[	0x4E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABS	, 	6	};
@@ -57,6 +59,7 @@ namespace nes {
         instr_mtx[	0x56	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0x58	] = {	"CLI"	, 	&CPU::CLI	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x59	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0x5A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0x5D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0x5E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABX	, 	7	};
         instr_mtx[	0x60	] = {	"RTS"	, 	&CPU::RTS	, 	&CPU::IMP	, 	6	};
@@ -65,7 +68,7 @@ namespace nes {
         instr_mtx[	0x66	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZP0	, 	5	};
         instr_mtx[	0x68	] = {	"PLA"	, 	&CPU::PLA	, 	&CPU::IMP	, 	4	};
         instr_mtx[	0x69	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x6A	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::IMP	, 	2	};
+        instr_mtx[	0x6A	] = {	"ROR"	, 	&CPU::ROR_A	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x6C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::IND	, 	5	};
         instr_mtx[	0x6D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABS	, 	4	};
         instr_mtx[	0x6E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABS	, 	6	};
@@ -75,6 +78,7 @@ namespace nes {
         instr_mtx[	0x76	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0x78	] = {	"SEI"	, 	&CPU::SEI	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0x79	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0x7A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0x7D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0x7E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABX	, 	7	};
         instr_mtx[	0x81	] = {	"STA"	, 	&CPU::STA	, 	&CPU::IZX	, 	6	};
@@ -135,6 +139,7 @@ namespace nes {
         instr_mtx[	0xD6	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0xD8	] = {	"CLD"	, 	&CPU::CLD	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0xD9	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0xDA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0xDD	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0xDE	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ABX	, 	7	};
         instr_mtx[	0xE0	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::IMM	, 	2	};
@@ -154,6 +159,7 @@ namespace nes {
         instr_mtx[	0xF6	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ZPX	, 	6	};
         instr_mtx[	0xF8	] = {	"SED"	, 	&CPU::SED	, 	&CPU::IMP	, 	2	};
         instr_mtx[	0xF9	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABY	, 	4	};
+        instr_mtx[	0xFA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
         instr_mtx[	0xFD	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABX	, 	4	};
         instr_mtx[	0xFE	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ABX	, 	7	};
         
@@ -165,8 +171,6 @@ namespace nes {
                 instr_mtx[i].cycles = 2;
             }
         }
-
-        std::clog << "CPU instructions loading complete" << std::endl;
     }
 
     CPU::~CPU(){}
@@ -248,7 +252,7 @@ namespace nes {
         store(kSTACK_BASE + S, PC & 0xff);
         --S;
         //set STATUS_FLAGS;
-        set_flag(FLAG::B, 0);
+        set_flag(FLAG::B, 0);//not caused by BRK();
         set_flag(FLAG::U, 1);
         set_flag(FLAG::I, 1);//shut down irq;
         //push STATUS_FLAGS;
@@ -360,9 +364,6 @@ namespace nes {
         std::clog << "Disassemble : complete" << std::endl;
         return map_asm;
     }
-    /*Byte IMP(); Byte IMM(); Byte ZP0(); Byte ZPX();
-    Byte ZPY(); Byte REL(); Byte ABS(); Byte ABX();
-    Byte ABY(); Byte IND(); Byte IZX(); Byte IZY(); */
 
     inline bool CPU::fetch(Word addr, Byte &data){
         return mainBus->read(addr, data);
@@ -512,27 +513,34 @@ namespace nes {
     //==================================================================
     //opcodes:
     //==================================================================
-
-    Byte CPU::ADC(){
+    Byte CPU::ADC() {
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
         fetch(addr_abs, fetch_buf);
-        Word res = A;
-        res += fetch_buf;
-        res += P.C;
-        //test carry;
-        set_flag(FLAG::C, res & 0x100);
-        //test zero;
-        set_flag(FLAG::Z, (res & 0xff) == 0);
-        //test overflow;
-        bool sign_acc = A & 0x80;
-        bool sign_fch = fetch_buf & 0x80;
-        bool sign_res = res & 0x80;
-        set_flag(FLAG::V, (sign_acc == sign_fch) && (sign_acc ^ sign_res) );
-        //test negative;
-        set_flag(FLAG::N, sign_res);
-        A = res & 0xff;
+        adc();
         return 1;//add one cycle if page cross;
     }
+
+    //Byte CPU::ADC(){
+    //    //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
+    //    fetch(addr_abs, fetch_buf);
+    //    temp_word = A;
+    //    temp_word += fetch_buf;
+    //    temp_word += P.C;
+    //    //test carry;
+    //    set_flag(FLAG::C, temp_word & 0x100);
+    //    //test zero;
+    //    set_flag(FLAG::Z, (temp_word & 0xff) == 0);
+    //    //test overflow;
+    //    bool sign_acc = A & 0x80;
+    //    bool sign_fch = fetch_buf & 0x80;
+    //    bool sign_res = temp_word & 0x80;
+    //    set_flag(FLAG::V, (sign_acc == sign_fch) && (sign_acc ^ sign_res) );
+    //    //test negative;
+    //    set_flag(FLAG::N, sign_res);
+    //    A = temp_word & 0xff;
+    //    return 1;//add one cycle if page cross;
+    //}
+    
     Byte CPU::AND(){
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
         fetch(addr_abs, fetch_buf);
@@ -544,20 +552,20 @@ namespace nes {
     }
     Byte CPU::ASL(){
         //ACCUM, ZP0, ZPX, ABS, ABX;
-        if (cur_opcode == 0x0A){//opcode of ASL-ACCUM;
-            set_flag(FLAG::C, A & 0x80);
-            A <<= 1;
-            set_flag(FLAG::Z, A == 0);
-            set_flag(FLAG::N, A & 0x80);
-        }
-        else {
-            fetch(addr_abs, fetch_buf);
-            set_flag(FLAG::C, fetch_buf & 0x80);
-            fetch_buf <<= 1;
-            set_flag(FLAG::Z, fetch_buf == 0);
-            set_flag(FLAG::N, fetch_buf & 0x80);
-            store(addr_abs, fetch_buf);
-        }
+        fetch(addr_abs, fetch_buf);
+        set_flag(FLAG::C, fetch_buf & 0x80);
+        fetch_buf <<= 1;
+        set_flag(FLAG::Z, fetch_buf == 0);
+        set_flag(FLAG::N, fetch_buf & 0x80);
+        store(addr_abs, fetch_buf);
+        return 0;
+    }
+    Byte CPU::ASL_A() {
+        //only used by ACCUM mode;
+        set_flag(FLAG::C, A & 0x80);
+        A <<= 1;
+        set_flag(FLAG::Z, A == 0);
+        set_flag(FLAG::N, A & 0x80);
         return 0;
     }
     Byte CPU::BCC(){
@@ -641,15 +649,15 @@ namespace nes {
         set_flag(FLAG::I, true);//shut down interrupt;
         //push the next instr addr;
         ++PC;
-        store(kSTACK_BASE + S, (PC >> 8) & 0xff);
-        --S;//push high byte first;
+        store(kSTACK_BASE + S, (PC >> 8) & 0xff);//push high byte first;
+        --S;
         store(kSTACK_BASE + S, PC & 0xff);
         --S;
         //push status flags;
-        set_flag(FLAG::B, true);
-        store(kSTACK_BASE + S, P.val);
+        //BRK should push status with bits 4 and 5 set
+        set_flag(FLAG::U, true);
+        store(kSTACK_BASE + S, (P.val | FLAG::B) );
         --S;
-        set_flag(FLAG::B, false);
         //goto irq handler;
         fetch(0xfffe, fetch_buf);
         PC = fetch_buf;
@@ -700,41 +708,41 @@ namespace nes {
         set_flag(FLAG::V, false);
         return 0;
     }
+
+    //helper funtion for CMP(), CPX(), CPY();
+    inline void CPU::cmp(Byte reg) {
+        temp_byte = reg - fetch_buf;
+        set_flag(FLAG::C, reg >= fetch_buf);
+        set_flag(FLAG::Z, reg == fetch_buf);
+        set_flag(FLAG::N, temp_byte & 0x80);
+    }
+
     Byte CPU::CMP(){
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
         fetch(addr_abs, fetch_buf);
-        bool pos = A >= fetch_buf;
-        set_flag(FLAG::C, pos);
-        set_flag(FLAG::Z, A == fetch_buf);
-        set_flag(FLAG::N, !pos);
+        cmp(A);
         return 0;
     }
     Byte CPU::CPX(){
         //IMM, ZP0, ABS;
         fetch(addr_abs, fetch_buf);
-        bool pos = X >= fetch_buf;
-        set_flag(FLAG::C, pos);
-        set_flag(FLAG::Z, X == fetch_buf);
-        set_flag(FLAG::N, !pos);
+        cmp(X);
         return 0;
     }
     Byte CPU::CPY(){
         //IMM, ZP0, ABS;
         fetch(addr_abs, fetch_buf);
-        bool pos = Y >= fetch_buf;
-        set_flag(FLAG::C, pos);
-        set_flag(FLAG::Z, Y == fetch_buf);
-        set_flag(FLAG::N, !pos);
+        cmp(Y);
         return 0;
     }
 
     Byte CPU::DEC(){
         //ZP0, ZPX, ABS, ABX;
         fetch(addr_abs, fetch_buf);
-        Byte res = fetch_buf - 1;
-        set_flag(FLAG::Z, res == 0);
-        set_flag(FLAG::N, res & 0x80);
-        store(addr_abs, res);//write back;
+        temp_byte = fetch_buf - 1;
+        set_flag(FLAG::Z, temp_byte == 0);
+        set_flag(FLAG::N, temp_byte & 0x80);
+        store(addr_abs, temp_byte);//write back;
         return 0;
     }
     Byte CPU::DEX(){
@@ -762,10 +770,10 @@ namespace nes {
     Byte CPU::INC(){
         //ZP0, ZPX, ABS, ABX;
         fetch(addr_abs, fetch_buf);
-        Byte res = fetch_buf + 1;
-        set_flag(FLAG::Z, res == 0);
-        set_flag(FLAG::N, res & 0x80);
-        store(addr_abs, res);
+        temp_byte = fetch_buf + 1;          // <--  wrap around ???
+        set_flag(FLAG::Z, temp_byte == 0);
+        set_flag(FLAG::N, temp_byte & 0x80);
+        store(addr_abs, temp_byte);
         return 0;
     }
 
@@ -780,7 +788,7 @@ namespace nes {
         //IMP
         ++Y;
         set_flag(FLAG::Z, Y == 0);
-        set_flag(FLAG::Z, Y & 0x80);
+        set_flag(FLAG::N, Y & 0x80);
         return 0;
     }
     Byte CPU::JMP(){
@@ -825,20 +833,19 @@ namespace nes {
     }
     Byte CPU::LSR(){
         //ACCUM, ZP0, ZPX, ABS, ABX;
-        if (cur_opcode == 0x4A){//opcode of LSR-ACCUM;
-            set_flag(FLAG::C, A & 0x1);
-            A >>= 1;
-            set_flag(FLAG::Z, A == 0);
-            set_flag(FLAG::N, A & 0x80);
-        }
-        else {
-            fetch(addr_abs, fetch_buf);
-            set_flag(FLAG::C, fetch_buf & 0x1);
-            fetch_buf >>= 1;
-            set_flag(FLAG::Z, fetch_buf == 0);
-            set_flag(FLAG::N, fetch_buf & 0x80);
-            store(addr_abs, fetch_buf);
-        }
+        fetch(addr_abs, fetch_buf);
+        set_flag(FLAG::C, fetch_buf & 0x1);
+        fetch_buf >>= 1;
+        set_flag(FLAG::Z, fetch_buf == 0);
+        set_flag(FLAG::N, fetch_buf & 0x80);
+        store(addr_abs, fetch_buf);
+        return 0;
+    }
+    Byte CPU::LSR_A() {
+        set_flag(FLAG::C, A & 0x1);
+        A >>= 1;
+        set_flag(FLAG::Z, A == 0);
+        set_flag(FLAG::N, A & 0x80);
         return 0;
     }
     Byte CPU::NOP(){
@@ -885,25 +892,24 @@ namespace nes {
         //ACCUM, ZP0, ZPX, ABS, ABX;
         //"Bit 0 is filled with the current value of the carry flag 
         //whilst the old bit 7 becomes the new carry flag value."
-        Byte b7;
-        if (cur_opcode == 0x2A){//opcode of ROL-ACCUM;
-            b7 = (A & 0x80) ? 1 : 0;
-            A <<= 1;
-            A |= P.C;
-            set_flag(FLAG::C, b7);
-            set_flag(FLAG::Z, A == 0);
-            set_flag(FLAG::N, A & 0x80);
-        }
-        else {
-            fetch(addr_abs, fetch_buf);
-            b7 = (fetch_buf & 0x80) ? 1 : 0;
-            fetch_buf <<= 1;
-            fetch_buf |= P.C;
-            set_flag(FLAG::C, b7);
-            set_flag(FLAG::Z, fetch_buf == 0);
-            set_flag(FLAG::N, fetch_buf & 0x80);
-            store(addr_abs, fetch_buf);
-        }
+        fetch(addr_abs, fetch_buf);
+        temp_byte = fetch_buf;
+        fetch_buf <<= 1;
+        fetch_buf |= P.C;
+        set_flag(FLAG::C, temp_byte & 0x80);
+        set_flag(FLAG::Z, fetch_buf == 0);
+        set_flag(FLAG::N, fetch_buf & 0x80);
+        store(addr_abs, fetch_buf);
+        return 0;
+    }
+    Byte CPU::ROL_A() {
+        //This func is only used by ACCUM mode;
+        temp_byte = A;
+        A <<= 1;
+        A |= P.C;
+        set_flag(FLAG::C, temp_byte & 0x80);
+        set_flag(FLAG::Z, A == 0);
+        set_flag(FLAG::N, A & 0x80);
         return 0;
     }
 
@@ -911,25 +917,24 @@ namespace nes {
         //ACCUM, ZP0, ZPX, ABS, ABX;
         //Bit 7 is filled with the current value of the carry flag 
         //whilst the old bit 0 becomes the new carry flag value.
-        Byte b0;
-        if (cur_opcode == 0x6A){//opcode of ROR-ACCUM;
-            b0 = A & 0x1;
-            A >>= 1;
-            A |= (P.C << 7);
-            set_flag(FLAG::C, b0);
-            set_flag(FLAG::Z, A == 0);
-            set_flag(FLAG::N, b0);
-        }
-        else {
-            fetch(addr_abs, fetch_buf);
-            b0 = fetch_buf & 0x1;
-            fetch_buf >>= 1;
-            fetch_buf |= (P.C << 7);
-            set_flag(FLAG::C, b0);
-            set_flag(FLAG::Z, fetch_buf == 0);
-            set_flag(FLAG::N, b0);
-            store(addr_abs, fetch_buf);
-        }
+        fetch(addr_abs, fetch_buf);
+        temp_byte = fetch_buf & 0x1;
+        fetch_buf >>= 1;
+        fetch_buf |= (P.C << 7);
+        set_flag(FLAG::N, P.C);
+        set_flag(FLAG::C, temp_byte);
+        set_flag(FLAG::Z, fetch_buf == 0);
+        store(addr_abs, fetch_buf);
+        return 0;
+    }
+    Byte CPU::ROR_A() {
+        //This func is only used by ACCUM mode;
+        temp_byte = A & 0x1;
+        A >>= 1;
+        A |= (P.C << 7);
+        set_flag(FLAG::N, P.C);//carry becomes bit 7, which decide nagetive flag;
+        set_flag(FLAG::C, temp_byte);//update carry flag;
+        set_flag(FLAG::Z, A == 0);
         return 0;
     }
     Byte CPU::RTI(){
@@ -957,27 +962,54 @@ namespace nes {
         ++S;
         fetch(kSTACK_BASE + S, fetch_buf);
         PC |= (Word)fetch_buf << 8;
-        ++PC;
+        ++PC;//RTS return to addr + 1;
         return 0;
     }
+
+    //helper function for ADC() and SBC();
+    inline void CPU::adc() {
+        temp_word = (Word)A + (Word)fetch_buf + (Word)P.C;
+        //test carry;
+        set_flag(FLAG::C, temp_word & 0x100);
+        //test zero;
+        set_flag(FLAG::Z, (temp_word & 0xff) == 0);
+
+        //test overflow;
+        //bool sign_acc = A & 0x80;
+        //bool sign_fch = fetch_buf & 0x80;
+        //bool sign_res = temp_word & 0x80;
+        //set_flag(FLAG::V, (sign_acc == sign_fch) && (sign_acc ^ sign_res));
+
+        // (sign_acc NXOR sign_mem) AND (sign_acc XOR sign_result)
+        set_flag(FLAG::V, ~(A ^ fetch_buf) & (A ^ temp_word) & 0x80);
+
+        //test negative;
+        set_flag(FLAG::N, temp_word & 0x80);
+        A = temp_word & 0xff;
+    }
+
     Byte CPU::SBC(){
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
         fetch(addr_abs, fetch_buf);
-        Word res = A - (!P.C);//carry not = borrow;
-        res -= fetch_buf;
-        set_flag(FLAG::C, res > A);
-        //test zero;
-        set_flag(FLAG::Z, (res & 0xff) == 0);
-        //test overflow;
-        bool sign_acc = A & 0x80;
-        bool sign_fch = fetch_buf & 0x80;
-        bool sign_res = res & 0x80;
-        set_flag(FLAG::V, (sign_acc ^ sign_fch) && (sign_acc ^ sign_res) );
-        //test negative;
-        set_flag(FLAG::N, sign_res);
-        A = res & 0xff;
+        fetch_buf ^= 0xff;//flip each bit;
+        adc();
         return 1;//add one cycle if page cross;
+
+        //temp_word = A - (!P.C);//carry not = borrow;
+        //temp_word -= fetch_buf;
+        //set_flag(FLAG::C, temp_word > A);
+        ////test zero;
+        //set_flag(FLAG::Z, (temp_word & 0xff) == 0);
+        ////test overflow;
+        //bool sign_acc = A & 0x80;
+        //bool sign_fch = fetch_buf & 0x80;
+        //bool sign_res = temp_word & 0x80;
+        //set_flag(FLAG::V, (sign_acc ^ sign_fch) && (sign_acc ^ sign_res) );
+        ////test negative;
+        //set_flag(FLAG::N, sign_res);
+        //A = temp_word & 0xff;
     }
+
     Byte CPU::SEC(){
         //IMP
         set_flag(FLAG::C, true);

@@ -2,4 +2,5 @@
 *.nes
 *.exe
 *.dbg
+*.log
 save_ram_out

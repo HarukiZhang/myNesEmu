@@ -40,14 +40,14 @@ namespace nes {
 
 	//CPU status flag;
 	enum FLAG : Byte {
-		C = 0b1,
-		Z = 0b10,
-		I = 0b100,
-		D = 0b1000,
-		B = 0b10000,
-		U = 0b100000,
-		V = 0b1000000,
-		N = 0b10000000,
+		C = 0b0000'0001,
+		Z = 0b0000'0010,
+		I = 0b0000'0100,
+		D = 0b0000'1000,
+		B = 0b0001'0000,
+		U = 0b0010'0000,
+		V = 0b0100'0000,
+		N = 0b1000'0000,
 	};
 
 	enum Mapper_Type : Byte {
