@@ -25,11 +25,18 @@ namespace nes {
             //    doesn't implement it at all.
             //    The final result is displayed and also written to $6000.Before the test
             //    starts, $80 is written there so you can tell when it's done. If a test
-            //    needs the NES to be reset, it writes $81 there.In addition, $DE $B0 $G1
+            //    needs the NES to be reset, it writes $81 there.
+            // 
+            //    In addition, $DE $B0 $61
             //    is written to $6001 - $6003 to allow an emulator to detect when a test is
             //    being run, as opposed to some other NES program.In NSF builds, the
             //    final result is also reported via a series of beeps(see below).
 
+            ofs << "Save-RAM data : ";
+            if (prg_ram[1] == 0xDE && prg_ram[2] == 0xB0 && prg_ram[3] == 0x61)
+                ofs << "valid" << std::endl;
+            else ofs << "invalid" << std::endl;
+            ofs << "======================================" << std::endl;
             ofs << reinterpret_cast<char*>(&prg_ram[0x4]);
             ofs << std::endl;
 
@@ -82,10 +89,20 @@ namespace nes {
         }
         else {
             print_info_v_iNES();
-            load_content(ifs, true);
-            ret = true;
-        }
 
+            //need to pre-check Mapper type;
+            unsigned int mapper_num = header.n_mapper();
+            switch (mapper_num) {
+            case Mapper_Type::NROM:
+                load_content(ifs, true);
+                ret = true;
+                break;
+            default:
+                std::clog << "Mapper " << mapper_num << " is not support now." << std::endl;
+                ret = false;
+                break;
+            }
+        }
         ifs.close();
         return ret;
     }
@@ -223,13 +240,15 @@ namespace nes {
             std::clog << "The trainer has been ignored." << std::endl;
         }
 
-        size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom;
-        prg_rom.resize(size_prg_rom);
-        ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
+        if (size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom) {//Attention: size could be 0;
+            prg_rom.resize(size_prg_rom);
+            ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
+        }
 
-        size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom;
-        chr_rom.resize(size_chr_rom);
-        ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
+        if (size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom) {
+            chr_rom.resize(size_chr_rom);
+            ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
+        }
 
         if (header.save_ram || create_ram) {
             //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;

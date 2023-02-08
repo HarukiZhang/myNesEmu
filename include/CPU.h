@@ -26,9 +26,8 @@ namespace nes {
         std::map<Word, std::string> disassemble(Word addr_start, Word addr_stop);
 
     private:
-        inline bool fetch(Word addr, Byte &data);
-        inline bool store(Word addr, Byte data);
-        inline void set_flag(FLAG flag, bool test);
+        bool fetch(Word addr, Byte &data);
+        bool store(Word addr, Byte data);
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
@@ -52,13 +51,18 @@ namespace nes {
         Byte SEI(); Byte STA(); Byte STX(); Byte STY(); Byte TAX(); 
         Byte TAY(); Byte TSX(); Byte TXA(); Byte TXS(); Byte TYA(); 
 
-        //Internal function for easy implementation of opcodes:
         Byte ASL_A(); //ASL {ACCUM}
         Byte LSR_A(); //LSR {ACCUM}
         Byte ROL_A(); //ROL {ACCUM}
         Byte ROR_A(); //ROR {ACCUM}
+
+        //helper functions for easy implementation of opcodes:
+        void set_flag(FLAG flag, bool test); //helper function for set flags;
         void adc(); //helper function for ADC() and SBC();
-        void cmp(Byte reg); //helper funtion for CMP(), CPX(), CPY();
+        void cmp(Byte reg); //helper function for CMP(), CPX(), CPY();
+        void push(Byte val); //helper function for stack operation;
+        void pull(Byte &val);
+        void branch(bool test); //helper function for branch instrs;
 
         //Unofficial opcodes catcher:
         Byte XXX();

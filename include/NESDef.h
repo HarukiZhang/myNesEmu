@@ -17,6 +17,10 @@ namespace nes {
 	constexpr Word kMAX_INTER_RAM = 0x600;       //max size of internal assigned RAM;
 	constexpr Word kMAX_RAM = 0x800;             //max size of physical CPU RAM;
 
+	constexpr Word kNMI_VECTOR = 0xFFFA;         //low byte address of nmi handler vector;
+	constexpr Word kRESET_VECTOR = 0xFFFC;       //low byte address of reset handler vector;
+	constexpr Word kIRQ_VECTOR = 0xFFFE;         //low byte address of irq handler vector;
+
 	constexpr Word kMAX_VRAM = 0x800;            //max size of PPU Vedio RAM;
 	constexpr Word kMAX_NAME_TBL = 0x3C0;        //max size of name table byte;
 	constexpr Word kMAX_ATTR_TBL = 0x40;         //max size of attribute table byte;
@@ -359,18 +363,18 @@ namespace nes {
 		Byte num_prg_rom;        //Btye 4
 		Byte num_chr_rom;        //Byte 5
 		//Byte 6:            <-    Byte 6
-		Byte mirror_hv : 1;//0:horizontal; 1:vertical;
-		Byte save_ram : 1;//Cartridge contains battery-backed PRG RAM ($6000-7FFF) 
-						  //or other persistent memory
-		Byte trainer : 1;//512-byte trainer at $7000-$71FF (stored before PRG data)
-		Byte four_screen : 1;//within cart provide extra VRAM;
-		Byte n_mapper_low : 4;
+		Byte mirror_hv : 1;      //0:horizontal; 1:vertical;
+		Byte save_ram : 1;       //Cartridge contains battery-backed PRG RAM ($6000-7FFF) 
+						         //		or other persistent memory
+		Byte trainer : 1;		 //512-byte trainer at $7000-$71FF (stored before PRG data)
+		Byte four_screen : 1;    //		within cart provide extra VRAM;
+		Byte n_mapper_low : 4;   //lower 4bits of mapper, stood at upper 4bits in Byte 6;
 		//Byte 6 end;
 		//Byte 7:            <-    Byte 7
 		Byte vs_unisys : 1;
 		Byte playchoice : 1;
 		Byte nes_2_sign : 2;
-		Byte n_mapper_high : 4;
+		Byte n_mapper_high : 4;  //upper 4bits of mapper, at upper 4bits in Byte 7;
 		//Byte 7 end;
 		Byte num_prg_ram;        //Byte 8
 		char tailBytes[7];       //Byte 9-15
@@ -379,9 +383,7 @@ namespace nes {
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}
 		Byte n_mapper() const {
-			Byte ret = n_mapper_high;
-			ret << 4;
-			return static_cast<Byte>(ret | n_mapper_low);
+			return static_cast<Byte>((n_mapper_high << 4) | n_mapper_low);
 		}
 	};
 

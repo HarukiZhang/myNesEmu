@@ -4,6 +4,7 @@
 #include <chrono>
 #include <queue>
 #include <string>
+#include <ctime>
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -42,6 +43,7 @@ enum PHASE {
 PHASE phase = PHASE::initiation;
 size_t global_counter = 0;
 size_t cycles = 0;
+int result_code = 0;
 
 inline bool initiate(const char* file_path){
 	if (cart.load_test_rom(file_path)) {
@@ -70,10 +72,23 @@ inline bool initiate(const char* file_path){
 }
 
 inline bool doClock() {
-	// The final result is displayed and also written to $6000.
-	// Before the test starts, $80 is written there so you can tell when it's done. 
-	// If a test needs the NES to be reset, it writes $81 there.
-	// In addition, $DE $B0 $61 is written to $6001 - $6003 to allow an emulator to detect when a test is being run.
+	// Output at $6000
+	// ---------------
+	// All text output is written starting at $6004, with a zero - byte terminator at the end.
+	// As more text is written, the terminator is moved forward, so an emulator can print the current text at any time.
+	//
+	// The test status is written to $6000.
+	// $80 means the test is running, 
+	// $81 means the test needs the reset button pressed, but delayed by at least 100 msec from now.
+	// $00 - $7F means the test has completed and given that result code.
+	//
+	// To allow an emulator to know when one of these tests is running and the data at $6000 + is valid, 
+	// as opposed to some other NES program, $DE $B0 $61 is written to $6001 - $6003.
+	
+	// Exit reports the code then goes into an infinite loop.
+	// If the code is 0, it doesn't do anything, otherwise it reports the code.
+	// Code 1 is reported as "Failed", and the rest as "Error< code > ".
+
 	bool ret = false;
 	//Test related:
 	if (cart.get_prg_ram(0) == 0x81) cpu.reset();
@@ -89,13 +104,14 @@ inline bool doClock() {
 		break;
 	case PHASE::waitToLoad:
 		if (cart.get_prg_ram(1) == 0xDE && cart.get_prg_ram(2) == 0xB0 && cart.get_prg_ram(3) == 0x61) {
-			std::clog << "Test is running ..." << std::endl;
+			std::clog << "Save-RAM data : valid" << std::endl;
 			phase = PHASE::testRunning;
 		}
 		break;
 	case PHASE::testRunning:
-		if (cart.get_prg_ram(0) != 0x80) {
-			std::clog << "Test is done." << std::endl;
+		result_code = cart.get_prg_ram(0);
+		if (result_code != 0x80) {
+			std::clog << "Test is done, result code : "<< result_code << std::endl;
 			phase = PHASE::testDone;
 			return true;
 		}
@@ -150,15 +166,33 @@ inline void output_trace(const char* o_path) {
 	}
 }
 
+inline void print_time() {
+	std::time_t rawtime;
+	struct std::tm time_info {};
+	char time_buf[32];
+	std::time(&rawtime);
+	//time_info = std::localtime(&rawtime);
+	localtime_s(&time_info, &rawtime);
+	strftime(time_buf, 32, "%Y-%m-%d %H:%M:%S", &time_info);
+	std::clog << time_buf << std::endl;
+}
+
+
+
+
+//only need to change here:
+#define file_name "01-basics"
+
+
 int main() {
 	FILE* redef;
 	freopen_s(&redef, "D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\test_cpu_instr.log", "a", stderr);
 	std::clog << std::endl;
 	std::clog << "============================================" << std::endl;
-	std::clog << "Test: 11-special" << std::endl;
+	print_time();
+	std::clog << "Test: " "instr_test-v5 " file_name << std::endl;
 	
-	
-	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\rom_singles\\11-special.nes"))
+	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\instr_test-v5\\rom_singles\\" file_name ".nes"))
 		return 0;
 
 	bool bTraceStop = false;
