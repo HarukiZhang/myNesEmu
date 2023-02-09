@@ -21,6 +21,9 @@ namespace nes {
 	constexpr Word kRESET_VECTOR = 0xFFFC;       //low byte address of reset handler vector;
 	constexpr Word kIRQ_VECTOR = 0xFFFE;         //low byte address of irq handler vector;
 
+	constexpr bool signof(Byte val) { return (bool)(val >> 7); }
+	constexpr bool signof(Word val) { return (bool)(val & (Word)0x0080); }
+
 	constexpr Word kMAX_VRAM = 0x800;            //max size of PPU Vedio RAM;
 	constexpr Word kMAX_NAME_TBL = 0x3C0;        //max size of name table byte;
 	constexpr Word kMAX_ATTR_TBL = 0x40;         //max size of attribute table byte;
@@ -106,6 +109,14 @@ namespace nes {
 		Byte &operator[](Word _addr){
 			return zero_page[_addr];
 		}
+		void reset() {
+			size_t* it = reinterpret_cast<size_t*>(this);
+			size_t* itend = reinterpret_cast<size_t*>(&inter_ram[kMAX_INTER_RAM]);
+			while (it < itend) {
+				*it = 0;
+				++it;
+			}
+		}
 	};
 
 	//I/O registers in CPU addressing space, 32 Byte;
@@ -157,6 +168,14 @@ namespace nes {
 		
 		Byte &operator[](Word _addr){
 			return name_table_0[_addr];
+		}
+		void reset() {
+			size_t* it = reinterpret_cast<size_t*>(this);
+			size_t* itend = reinterpret_cast<size_t*>(&attribute_table_1[kMAX_ATTR_TBL]);
+			while (it < itend) {
+				*it = 0;
+				++it;
+			}
 		}
 	};
 

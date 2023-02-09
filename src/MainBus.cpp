@@ -20,7 +20,7 @@ namespace nes {
         ppu->clock();
         if (sys_clock % 3 == 0)
             cpu->clock();
-
+        check_nmi();
         ++sys_clock;
     }
     
@@ -159,6 +159,7 @@ namespace nes {
     void MainBus::reset(){
         sys_clock = 0;
 		cpu_halt = false;
+        ram.reset();
         cpu->reset();
         ppu->reset();
     }
