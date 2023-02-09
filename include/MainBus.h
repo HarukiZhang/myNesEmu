@@ -24,6 +24,10 @@ namespace nes {
         //TODO: DMC DMA fucntion;
         //void DMC_DMA();
         void clock();
+
+        //check signal from each devices;
+        //MainBus should only check signals and inform CPU that there is interrupt request,
+        //  but not to "command" CPU to be interrupted;
         inline void check_nmi();
         void reset();
 
@@ -32,6 +36,10 @@ namespace nes {
         //IO_REG io_regs;
 
         Counter sys_clock = 0;//count global ppu clock cycles;
+
+        friend class CPU;
+        bool irq_detected = false;
+        bool nmi_detected = false;
 
         // bool cycle_rw = false;//true: read cycle; false: write cycle;
         //   ^---- deprecated;

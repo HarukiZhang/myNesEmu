@@ -57,6 +57,12 @@ namespace nes {
 		N = 0b1000'0000,
 	};
 
+	enum IRQ_SRC : Byte {
+		External =		0b0001,
+		FrameCounter =	0b0010,
+		DMC =			0b0100,
+	};
+
 	enum Mapper_Type : Byte {
 		NROM = 0x00,
 		MMC1 = 0x01,
@@ -98,6 +104,10 @@ namespace nes {
 		STATUS_FLAGS() {
 			val = 0;
 		}
+	};
+
+	struct Interrupt_Mask {
+		Byte val;
 	};
 
 	//RAM for CPU, 2KB;

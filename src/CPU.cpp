@@ -187,6 +187,9 @@ namespace nes {
     }
 
     void CPU::clock(){
+        if (cycles-- > 1) return;
+        cycles = 0;
+
         if (cycles == 0){
             fetch(PC++, cur_opcode);
             
@@ -209,10 +212,69 @@ namespace nes {
         return;
     }
 
+    inline void CPU::detect_interrupt() {
+        //nmi;
+        prev_nmi_input = nmi_input;
+        nmi_input = mainBus->nmi_detected ? true : false;
+        //irq;
+        prev_irq_input = irq_input;
+        irq_input = mainBus->irq_detected ? true : false;
+    }
+
+    inline void CPU::edge_detector() {
+        if (!prev_nmi_input && nmi_input) {//edge-detect;
+            nmi_pending = true;
+        }
+    }
+
+    inline void CPU::level_detector() {
+        if (!P.I && prev_irq_input) {//level-detect;
+            irq_pending = true;
+        }
+    }
+
+    inline void CPU::poll_interrupt() {
+        //check and test whether call interrupt_sequence();
+        if (nmi_pending || irq_pending)
+            run_interrupt_sequence = true;
+    }
+    void CPU::interrupt_sequence() {
+        //do specific preparation for interrupt handler;
+        // interrupt sequence itself do not polling other interrupt;
+        //push PC;
+        push((PC >> 8) & (Word)0x00ff);//push high byte first;
+        push(PC & (Word)0x00ff);
+
+        //push STATUS_FLAGS;
+        set_flag(FLAG::B, false);//BRK() do not use this interrupt sequence;
+        set_flag(FLAG::U, true);//the only point that needs to care FLAG::U, ie, before pushing stack;
+        push(P.val);
+
+        //set FLAG::I after pushing stack;
+        set_flag(FLAG::I, true);//shut down interrupt;
+
+        //fetch correspond handler addr;
+        if (nmi_pending) {//priority give to nmi;
+            fetch(kNMI_VECTOR, fetch_buf);
+            PC = fetch_buf;
+            fetch(kNMI_VECTOR + 1, fetch_buf);
+            PC |= (Word)fetch_buf << 8;
+        }
+        else {
+            fetch(kIRQ_VECTOR, fetch_buf);
+            PC = fetch_buf;
+            fetch(kIRQ_VECTOR + 1, fetch_buf);
+            PC |= (Word)fetch_buf << 8;
+        }
+
+        //interrupt sequence takes time;
+        cycles = 7;
+    }
+
     void CPU::reset(){
         A = X = Y = 0;
         S = 0xFD;//low byte of stack pointer;
-        P.val = 0 | FLAG::I;
+        P.val = (0 | FLAG::I | FLAG::U);
 
         //fetch reset handler address;
         fetch(kRESET_VECTOR, fetch_buf);
@@ -227,6 +289,8 @@ namespace nes {
         temp_word = 0;
         temp_byte = 0;
 
+        //TODO: new bool switch for irq and nmi detection;
+
         //reset handler takes time;
         cycles = 8;
     }
@@ -239,11 +303,13 @@ namespace nes {
 
             //set STATUS_FLAGS;
             set_flag(FLAG::B, 0);//irq that is not caused by BRK;
-            set_flag(FLAG::U, 1);
-            set_flag(FLAG::I, 1);//shut down interrupt;
+            set_flag(FLAG::U, 1);//the only point that needs to care FLAG::U, ie, before pushing stack;
 
             //push STATUS_FLAGS;
             push(P.val);
+            
+            //set FLAG::I after pushing stack;
+            set_flag(FLAG::I, 1);//shut down interrupt;
 
             //fetch handler addr;
             fetch(kIRQ_VECTOR, fetch_buf);
@@ -263,11 +329,12 @@ namespace nes {
         //set STATUS_FLAGS;
         //FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed.
         set_flag(FLAG::B, 0);
-        set_flag(FLAG::U, 1);
-        set_flag(FLAG::I, 1);//shut down irq;
+        set_flag(FLAG::U, 1);//before pushing stack, touch the FLAG::U bit;
         
         //push STATUS_FLAGS;
         push(P.val);
+
+        set_flag(FLAG::I, 1);//shut down irq;
 
         //fetch nmi handler addr;
         fetch(kNMI_VECTOR, fetch_buf);
@@ -275,7 +342,7 @@ namespace nes {
         fetch(kNMI_VECTOR + 1, fetch_buf);
         PC |= (Word)fetch_buf << 8;
         //nmi handler takes time;
-        cycles = 8;
+        cycles = 7; //cycles it takes should be the same as irq interrupt sequence;
     }
 
     bool CPU::complete(){
@@ -865,8 +932,8 @@ namespace nes {
         //IMP
         //"FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed."
         push((P.val | FLAG::B | FLAG::U));
-        set_flag(FLAG::B, false);
-        set_flag(FLAG::U, false);
+        set_flag(FLAG::B, false);//explicitly clear FLAG::B for sure;
+        //set_flag(FLAG::U, false);
         return 0;
     }
     Byte CPU::PLA(){
@@ -935,14 +1002,14 @@ namespace nes {
         return 0;
     }
     Byte CPU::RTI(){
-        //IMP
+        //IMP; 6 cycles;
         //pull status flags;
         pull(P.val);
         //"The CPU pushes a value with B clear during an interrupt, 
         //  pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
         set_flag(FLAG::B, false);
-        set_flag(FLAG::U, false);
+        //set_flag(FLAG::U, false);  <-- do not need to clear a FLAG::U, for there is no a physic bit being FLAG::U;
         //pull PC;
         pull(temp_byte);//pull low byte first;
         PC = temp_byte;
@@ -952,7 +1019,7 @@ namespace nes {
         return 0;
     }
     Byte CPU::RTS(){
-        //IMP
+        //IMP; 6 cycles;
         pull(temp_byte);//pull low byte first;
         PC = temp_byte;
         pull(temp_byte);

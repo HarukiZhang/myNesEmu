@@ -29,6 +29,12 @@ namespace nes {
         bool fetch(Word addr, Byte &data);
         bool store(Word addr, Byte data);
 
+        void detect_interrupt();
+        void edge_detector();
+        void level_detector();//detect low level on irq pin;
+        void poll_interrupt();//check and test whether call interrupt_sequence();
+        void interrupt_sequence();//do specific preparation for interrupt handler;
+
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
 
@@ -81,6 +87,16 @@ namespace nes {
         Word addr_abs = 0;
         Word addr_rel = 0;
         Byte cur_opcode = 0;
+
+        bool run_interrupt_sequence = false;
+
+        bool irq_pending = false;//internal signal for irq;
+        bool irq_input = false;
+        bool prev_irq_input = false;
+
+        bool nmi_pending = false;//internal signal for nmi;
+        bool nmi_input = false;
+        bool prev_nmi_input = false;
 
         Word temp_word = 0;
         Byte temp_byte = 0;
