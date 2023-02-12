@@ -15,6 +15,7 @@ namespace nes {
         void connect(MainBus *_bus);
         void exe_instr();
         void clock();
+        void clock_s();
         void reset();
         void irq();
         void nmi();
@@ -26,14 +27,13 @@ namespace nes {
         std::map<Word, std::string> disassemble(Word addr_start, Word addr_stop);
 
     private:
-        bool fetch(Word addr, Byte &data);
+        bool fetch(Word addr, Byte& data);
         bool store(Word addr, Byte data);
 
         void detect_interrupt();
-        void edge_detector();
-        void level_detector();//detect low level on irq pin;
-        void poll_interrupt();//check and test whether call interrupt_sequence();
-        void interrupt_sequence();//do specific preparation for interrupt handler;
+        void interrupt_sequence_start();
+        void interrupt_sequence_end();
+        void interrupt_sequence_clear();
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
@@ -88,14 +88,14 @@ namespace nes {
         Word addr_rel = 0;
         Byte cur_opcode = 0;
 
+        Instr_Phase phase = Instr_Phase::instr_fetch;
         bool run_interrupt_sequence = false;
 
         bool irq_pending = false;//internal signal for irq;
-        bool irq_input = false;
-        bool prev_irq_input = false;
+        bool irq_need = false;
 
         bool nmi_pending = false;//internal signal for nmi;
-        bool nmi_input = false;
+        bool nmi_need = false;
         bool prev_nmi_input = false;
 
         Word temp_word = 0;

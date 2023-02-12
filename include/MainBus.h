@@ -31,6 +31,11 @@ namespace nes {
         inline void check_nmi();
         void reset();
 
+
+        //debug:
+        Byte get_ram(Word addr) {
+            return ram[addr];
+        }
     private:
         RAM ram;//ram for CPU;
         //IO_REG io_regs;

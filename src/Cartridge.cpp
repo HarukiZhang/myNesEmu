@@ -37,7 +37,8 @@ namespace nes {
                 ofs << "valid" << std::endl;
             else ofs << "invalid" << std::endl;
             ofs << "======================================" << std::endl;
-            ofs << reinterpret_cast<char*>(&prg_ram[0x4]);
+            if (prg_ram[0x4])
+                ofs << reinterpret_cast<char*>(&prg_ram[0x4]);
             ofs << std::endl;
 
             ofs.close();
@@ -94,7 +95,7 @@ namespace nes {
             unsigned int mapper_num = header.n_mapper();
             switch (mapper_num) {
             case Mapper_Type::NROM:
-                load_content(ifs, true);
+                load_content(ifs, create_prg_ram);
                 ret = true;
                 break;
             default:

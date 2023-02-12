@@ -2,7 +2,6 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-#include <queue>
 #include <string>
 #include <ctime>
 
@@ -23,8 +22,8 @@ nes::HybridBus hbus;
 nes::Cartridge cart;
 std::shared_ptr<nes::Mapper> mapp;
 
-std::map<nes::Word, std::string> map_asm;
-std::queue<std::string> trace_que;
+//std::map<nes::Word, std::string> map_asm;
+//std::queue<std::string> trace_que;
 
 constexpr int MAX_TRACE_LINES = 0xFFFF;
 constexpr int MAX_INSTR_LINES = 0xFFFFF;
@@ -54,7 +53,9 @@ inline bool initiate(const char* file_path){
 		return false;
 	}
 	mapp = nes::Mapper::create_mapper(cart);
-	if (mapp) std::clog << "Mapper creation : success" << std::endl;
+	if (mapp) {
+		std::clog << "Mapper creation : success" << std::endl;
+	}
 	else {
 		std::clog << "Mapper creation : failed" << std::endl;
 		return false;
@@ -62,8 +63,10 @@ inline bool initiate(const char* file_path){
 	mbus.connect(&cpu, &ppu, mapp);
 	hbus.connect(mapp);
 	ppu.connect(&hbus);
+	std::clog << "Mapper usecount : " << mapp.use_count() << std::endl;
 
-	map_asm = cpu.disassemble(0x0000, 0xFFFF);
+
+	//map_asm = cpu.disassemble(0x0000, 0xFFFF);
 
 	mbus.reset();
 	std::clog << "Initiation : complete" << std::endl;
@@ -71,7 +74,7 @@ inline bool initiate(const char* file_path){
 	return true;
 }
 
-inline bool doClock() {
+inline bool main_step() {
 	// Output at $6000
 	// ---------------
 	// All text output is written starting at $6004, with a zero - byte terminator at the end.
@@ -91,7 +94,7 @@ inline bool doClock() {
 
 	bool ret = false;
 	//Test related:
-	if (cart.get_prg_ram(0) == 0x81) cpu.reset();
+	//if (cart.get_prg_ram(0) == 0x81) cpu.reset();
 
 	switch (phase) {
 	case PHASE::initiation:
@@ -123,8 +126,10 @@ inline bool doClock() {
 	}
 
 	//General running:
-	cpu.exe_instr();
-	//do { cpu.clock(); } while (!cpu.complete());
+	//cpu.exe_instr();
+	do { 
+		cpu.clock(); 
+	} while (!cpu.complete());
 	
 	++global_counter;
 
@@ -142,29 +147,29 @@ inline void print_ips() {
 	}
 }
 
-inline bool log_trace() {
-	if (trace_que.size() >= MAX_TRACE_LINES)
-		return true;//Emu should stop due to trace limit reaches;
-	auto it = map_asm.find(cpu.PC);
-	if (it != map_asm.end()) {
-		trace_que.push(it->second);
-	}
-	//no else;
-	return false;//Emu could continue;
-}
-
-inline void output_trace(const char* o_path) {
-	if (!trace_que.empty()) {
-		std::ofstream ofs{ o_path, std::ios_base::trunc };
-		if (ofs.is_open()) {
-			while (!trace_que.empty()) {
-				ofs << trace_que.front() << std::endl;
-				trace_que.pop();
-			}
-		}
-		ofs.close();
-	}
-}
+//inline bool log_trace() {
+//	if (trace_que.size() >= MAX_TRACE_LINES)
+//		return true;//Emu should stop due to trace limit reaches;
+//	auto it = map_asm.find(cpu.PC);
+//	if (it != map_asm.end()) {
+//		trace_que.push(it->second);
+//	}
+//	//no else;
+//	return false;//Emu could continue;
+//}
+//
+//inline void output_trace(const char* o_path) {
+//	if (!trace_que.empty()) {
+//		std::ofstream ofs{ o_path, std::ios_base::trunc };
+//		if (ofs.is_open()) {
+//			while (!trace_que.empty()) {
+//				ofs << trace_que.front() << std::endl;
+//				trace_que.pop();
+//			}
+//		}
+//		ofs.close();
+//	}
+//}
 
 inline void print_time() {
 	std::time_t rawtime;
@@ -177,11 +182,27 @@ inline void print_time() {
 	std::clog << time_buf << std::endl;
 }
 
-
-
+/* file name of instr_test-v5 single rom
+01-basics
+02-implied
+03-immediate
+04-zero_page
+05-zp_xy
+06-absolute
+07-abs_xy
+08-ind_x
+09-ind_y
+10-branches
+11-stack
+12-jmp_jsr
+13-rts
+14-rti
+15-brk
+16-special
+*/
 
 //only need to change here:
-#define file_name "02-implied"
+#define file_name "04-zero_page"
 
 
 int main() {
@@ -195,17 +216,19 @@ int main() {
 	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\instr_test-v5\\rom_singles\\" file_name ".nes"))
 		return 0;
 
-	bool bTraceStop = false;
+	//bool bTraceStop = false;
 	t0 = SCLK::now();
 	while (true) {
-		if (doClock()) break;
+		if (main_step()) break;
 		t1 = SCLK::now();
+
 		//if (phase == PHASE::testRunning)
 		//	bTraceStop = log_trace();
 		//if (bTraceStop) {
 		//	std::clog << "Test stopped due to trace limit reaches." << std::endl;
 		//	break;
 		//}
+
 		print_ips();
 
 		//if (global_counter >= 0xfffff) {

@@ -21,8 +21,8 @@ namespace nes {
 	constexpr Word kRESET_VECTOR = 0xFFFC;       //low byte address of reset handler vector;
 	constexpr Word kIRQ_VECTOR = 0xFFFE;         //low byte address of irq handler vector;
 
-	constexpr bool signof(Byte val) { return (bool)(val >> 7); }
-	constexpr bool signof(Word val) { return (bool)(val & (Word)0x0080); }
+	constexpr bool signof(Byte val) { return (val & (Byte)0x80); }
+	constexpr bool signof(Word val) { return (val & (Word)0x0080); }
 
 	constexpr Word kMAX_VRAM = 0x800;            //max size of PPU Vedio RAM;
 	constexpr Word kMAX_NAME_TBL = 0x3C0;        //max size of name table byte;
@@ -46,7 +46,7 @@ namespace nes {
 	constexpr Word kPRG_RAM_SIZE = 0x2000;       //size of programable-RAM of iNES 1.0 file format;
 
 	//CPU status flag;
-	enum FLAG : Byte {
+	enum FLAG {
 		C = 0b0000'0001,
 		Z = 0b0000'0010,
 		I = 0b0000'0100,
@@ -55,6 +55,13 @@ namespace nes {
 		U = 0b0010'0000,
 		V = 0b0100'0000,
 		N = 0b1000'0000,
+	};
+
+	enum Instr_Phase {
+		instr_fetch,
+		execute,
+		extra,
+		interrupt,
 	};
 
 	enum IRQ_SRC : Byte {

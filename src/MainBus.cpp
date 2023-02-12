@@ -23,6 +23,11 @@ namespace nes {
         check_nmi();
         ++sys_clock;
     }
+
+    inline void MainBus::check_nmi() {
+        if (ppu->nmi_out) nmi_detected = true;
+        else nmi_detected = false;
+    }
     
     bool MainBus::read(Word addr, Byte &data){
         switch ( (addr & 0xf000) >> 12){
@@ -148,13 +153,6 @@ namespace nes {
 
     //    cpu->dma_cycles(3);
     //}
-
-    inline void MainBus::check_nmi(){
-        if (ppu->nmi_out){
-            ppu->nmi_out = false;
-            cpu->nmi();
-        }
-    }
     
     void MainBus::reset(){
         sys_clock = 0;

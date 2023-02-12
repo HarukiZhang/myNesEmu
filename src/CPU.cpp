@@ -5,6 +5,10 @@
 namespace nes {
 
     CPU::CPU(){
+        for (int i = 0; i < 0x100; ++i)
+            if (!instr_mtx[i].name.empty())
+                instr_mtx[i].name.clear();
+
         instr_mtx[	0x00	] = {	"BRK"	, 	&CPU::BRK	, 	&CPU::IMP	, 	7	};
         instr_mtx[	0x01	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IZX	, 	6	};
         instr_mtx[	0x05	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ZP0	, 	3	};
@@ -181,80 +185,114 @@ namespace nes {
 
     void CPU::exe_instr(){
         do {
-            clock();
+            clock_s();
         } while (cycles != 0);
         return;
     }
 
     void CPU::clock(){
-        if (cycles-- > 1) return;
-        cycles = 0;
-
-        if (cycles == 0){
+        if (cycles == 0) {
             fetch(PC++, cur_opcode);
-            
-            //set_flag(FLAG::U, true);//before executing any instr;
-            //According to Blarg, FLAG::B do not physically exist in Status Flags register;
-            //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
-
-            INSTR &cur_instr = instr_mtx[cur_opcode];
-
+            P.U = 1;//always set unused bit 1;
+            INSTR& cur_instr = instr_mtx[cur_opcode];
             cycles = cur_instr.cycles;
             temp_byte = (this->*cur_instr.addrMode)();
-            temp_byte &= (this->*cur_instr.operate)();
-
+            temp_byte = temp_byte & (this->*cur_instr.operate)();
             //additional cycles;
             cycles += temp_byte;
-            
-            //set_flag(FLAG::U, true);//after executing an instr;
+            P.U = 1;
         }
         cycles--;
         return;
     }
 
+    void CPU::clock_s() {
+        switch (phase) {
+        case Instr_Phase::instr_fetch :
+            if (irq_pending || nmi_pending) {
+                interrupt_sequence_start();
+            }
+            else {
+                fetch(PC++, cur_opcode);
+                cycles = instr_mtx[cur_opcode].cycles;
+                phase = Instr_Phase::execute;
+                //According to Blarg, FLAG::B do not physically exist in Status Flags register;
+                //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
+            }
+            break;
+        case Instr_Phase::execute :
+            if (cycles == 1) {
+                INSTR& cur_instr = instr_mtx[cur_opcode];
+                temp_byte = (this->*cur_instr.addrMode)();
+                temp_byte &= (this->*cur_instr.operate)();
+                //additional cycles;
+                cycles += temp_byte;
+                phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
+            }
+            break;
+        case Instr_Phase::extra :
+            if (cycles == 1) phase = Instr_Phase::instr_fetch;
+            break;
+        case Instr_Phase::interrupt :
+            if (cycles == 3) {
+                interrupt_sequence_end();
+            }
+            else if (cycles == 1) {
+                interrupt_sequence_clear();
+            }
+            break;
+        default :
+            std::cout << "CPU::clock::switch error" << std::endl;
+            break;
+        }
+        detect_interrupt();
+        --cycles;
+        return;
+    }
+
     inline void CPU::detect_interrupt() {
-        //nmi;
-        prev_nmi_input = nmi_input;
-        nmi_input = mainBus->nmi_detected ? true : false;
-        //irq;
-        prev_irq_input = irq_input;
-        irq_input = mainBus->irq_detected ? true : false;
-    }
-
-    inline void CPU::edge_detector() {
-        if (!prev_nmi_input && nmi_input) {//edge-detect;
-            nmi_pending = true;
+        //update nmi internal signal cycle;
+        nmi_pending = nmi_need;
+        //edge-detection;
+        if (!prev_nmi_input && mainBus->nmi_detected) {
+            nmi_need = true;
+        }
+        prev_nmi_input = mainBus->nmi_detected;
+        //update irq internal signal cycle;
+        irq_pending = irq_need;
+        //level-detect;
+        if (!P.I && mainBus->irq_detected) {
+            irq_need = true;
         }
     }
 
-    inline void CPU::level_detector() {
-        if (!P.I && prev_irq_input) {//level-detect;
-            irq_pending = true;
-        }
-    }
-
-    inline void CPU::poll_interrupt() {
-        //check and test whether call interrupt_sequence();
-        if (nmi_pending || irq_pending)
-            run_interrupt_sequence = true;
-    }
-    void CPU::interrupt_sequence() {
+    void CPU::interrupt_sequence_start() {
         //do specific preparation for interrupt handler;
         // interrupt sequence itself do not polling other interrupt;
+        cycles = 7;
+        phase = Instr_Phase::interrupt;
+        run_interrupt_sequence = true;
         //push PC;
         push((PC >> 8) & (Word)0x00ff);//push high byte first;
         push(PC & (Word)0x00ff);
-
+        //dummy_read();
+        //dummy_read();
+        
+        /* ------- polling interrupt at 4th cycle of interrupt sequence --------- */
+        
         //push STATUS_FLAGS;
-        set_flag(FLAG::B, false);//BRK() do not use this interrupt sequence;
-        set_flag(FLAG::U, true);//the only point that needs to care FLAG::U, ie, before pushing stack;
-        push(P.val);
-
+        temp_byte = P.val;
+        temp_byte &= ~FLAG::B;
+        temp_byte |= FLAG::U;//the only point that needs to care FLAG::U, ie, before pushing stack;
+        push(temp_byte);
         //set FLAG::I after pushing stack;
-        set_flag(FLAG::I, true);//shut down interrupt;
+        P.I = 1;//shut down interrupt;
+    }
 
+    void CPU::interrupt_sequence_end() {
         //fetch correspond handler addr;
-        if (nmi_pending) {//priority give to nmi;
+        if (nmi_need) {//priority give to nmi;
+            nmi_need = false;
             fetch(kNMI_VECTOR, fetch_buf);
             PC = fetch_buf;
             fetch(kNMI_VECTOR + 1, fetch_buf);
@@ -266,21 +304,25 @@ namespace nes {
             fetch(kIRQ_VECTOR + 1, fetch_buf);
             PC |= (Word)fetch_buf << 8;
         }
+    }
 
-        //interrupt sequence takes time;
-        cycles = 7;
+    inline void CPU::interrupt_sequence_clear() {
+        phase = Instr_Phase::instr_fetch;
+        run_interrupt_sequence = false;
     }
 
     void CPU::reset(){
         A = X = Y = 0;
         S = 0xFD;//low byte of stack pointer;
-        P.val = (0 | FLAG::I | FLAG::U);
+        P.val = (0 | FLAG::I);
 
         //fetch reset handler address;
         fetch(kRESET_VECTOR, fetch_buf);
         PC = fetch_buf;
         fetch(kRESET_VECTOR + 1, fetch_buf);
         PC |= (Word)fetch_buf << 8;
+
+        phase = Instr_Phase::instr_fetch;
 
         addr_abs = addr_rel = 0;
         addr_zp0 = 0;
@@ -289,7 +331,11 @@ namespace nes {
         temp_word = 0;
         temp_byte = 0;
 
-        //TODO: new bool switch for irq and nmi detection;
+        irq_pending = false;
+        irq_need = false;
+        nmi_pending = false;
+        nmi_need = false;
+        prev_nmi_input = false;
 
         //reset handler takes time;
         cycles = 8;
@@ -302,14 +348,14 @@ namespace nes {
             push(PC & (Word)0x00ff);
 
             //set STATUS_FLAGS;
-            set_flag(FLAG::B, 0);//irq that is not caused by BRK;
-            set_flag(FLAG::U, 1);//the only point that needs to care FLAG::U, ie, before pushing stack;
+            P.B = 0;//irq that is not caused by BRK;
+            P.U = 1;//the only point that needs to care FLAG::U, ie, before pushing stack;
 
             //push STATUS_FLAGS;
             push(P.val);
             
             //set FLAG::I after pushing stack;
-            set_flag(FLAG::I, 1);//shut down interrupt;
+            P.I = 1;//shut down interrupt;
 
             //fetch handler addr;
             fetch(kIRQ_VECTOR, fetch_buf);
@@ -328,13 +374,13 @@ namespace nes {
 
         //set STATUS_FLAGS;
         //FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed.
-        set_flag(FLAG::B, 0);
-        set_flag(FLAG::U, 1);//before pushing stack, touch the FLAG::U bit;
-        
+        P.B = 0;
+        P.U = 1;//before pushing stack, touch the FLAG::U bit;
+
         //push STATUS_FLAGS;
         push(P.val);
 
-        set_flag(FLAG::I, 1);//shut down irq;
+        P.I = 1;//shut down irq;
 
         //fetch nmi handler addr;
         fetch(kNMI_VECTOR, fetch_buf);
@@ -442,16 +488,17 @@ namespace nes {
         return map_asm;
     }
 
-    inline bool CPU::fetch(Word addr, Byte &data){
+
+    bool CPU::fetch(Word addr, Byte& data){
         return mainBus->read(addr, data);
     }
-    inline bool CPU::store(Word addr, Byte data){
+    bool CPU::store(Word addr, Byte data){
         return mainBus->write(addr, data);
     }
 
     inline void CPU::set_flag(FLAG flag, bool test){
         if (test) P.val |= flag;
-        else P.val &= (~flag);
+        else P.val &= ~flag;
     }
 
     //==================================================================
@@ -461,6 +508,7 @@ namespace nes {
     Byte CPU::IMP(){
         //this addressing mode includes both Implicit mode 
         //and Accumulator mode;
+        fetch_buf = A;
         return 0;
     }
 
@@ -471,22 +519,21 @@ namespace nes {
 
     Byte CPU::ZP0(){
         fetch(PC++, fetch_buf);
-        addr_abs = fetch_buf;
-        addr_abs &= 0x00ff;
+        addr_abs = fetch_buf & 0x00ff;
         return 0;
     }
 
     Byte CPU::ZPX(){
         fetch(PC++, fetch_buf);
         fetch_buf += X;//wrap around if crossed;
-        addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        addr_abs = fetch_buf & (Word)0x00ff;
         return 0;
     }
 
     Byte CPU::ZPY(){
         fetch(PC++, fetch_buf);
         fetch_buf += Y;//wrap around if crossed;
-        addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        addr_abs = fetch_buf & (Word)0x00ff;
         return 0;
     }
 
@@ -507,35 +554,49 @@ namespace nes {
     }
     
     Byte CPU::ABX(){
-        //cycle 2: read low byte / add reg X;
-        fetch(PC++, fetch_buf);  //fetch low byte;
-        addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        ////cycle 2: read low byte / add reg X;
+        //fetch(PC++, fetch_buf);  //fetch low byte;
+        //addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        //addr_abs += X;
+        //
+        //if ((addr_abs & (Word)0xff00)) temp_byte = 1;//if page crossed;
+        //else temp_byte = 0;
+        //
+        ////cycle 3: read high byte / add low result;
+        //fetch(PC++, fetch_buf);  //fetch high byte;
+        //addr_abs += (Word)fetch_buf << 8;
+        //return temp_byte;
+        fetch(PC++, fetch_buf);
+        addr_abs = fetch_buf;
+        fetch(PC++, fetch_buf);
+        addr_abs |= fetch_buf << 8;
         addr_abs += X;
-        
-        if ((addr_abs & (Word)0xff00)) temp_byte = 1;//if page crossed;
-        else temp_byte = 0;
-        
-        //cycle 3: read high byte / add low result;
-        fetch(PC++, fetch_buf);  //fetch high byte;
-        addr_abs |= (Word)fetch_buf << 8;
-
-        return temp_byte;
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        else return 0;
     }
 
     Byte CPU::ABY(){
         //cycle 2: read low byte / add reg Y;
-        fetch(PC++, fetch_buf);  //fetch low byte;
-        addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        //fetch(PC++, fetch_buf);  //fetch low byte;
+        //addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        //addr_abs += Y;
+        //
+        //if ( (addr_abs & (Word)0xff00) ) temp_byte = 1;//if page crossed;
+        //else temp_byte = 0;
+        //
+        ////cycle 3: read high byte / add low result;
+        //fetch(PC++, fetch_buf);  //fetch high byte;
+        //addr_abs += (Word)fetch_buf << 8;
+        //return temp_byte;
+        fetch(PC++, fetch_buf);
+        addr_abs = fetch_buf;
+        fetch(PC++, fetch_buf);
+        addr_abs |= fetch_buf << 8;
         addr_abs += Y;
-        
-        if ( (addr_abs & (Word)0xff00) ) temp_byte = 1;//if page crossed;
-        else temp_byte = 0;
-
-        //cycle 3: read high byte / add low result;
-        fetch(PC++, fetch_buf);  //fetch high byte;
-        addr_abs |= (Word)fetch_buf << 8;
-
-        return temp_byte;
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        else return 0;
     }
     
     Byte CPU::IND(){
@@ -557,21 +618,26 @@ namespace nes {
         //normally used in conjunction with a table of address held on zero page;
         //FORMULA: val = PEEK(PEEK((arg + X) % 256) + PEEK((arg + X + 1) % 256) * 256)	
 
-        //cycle 1: read
-        fetch(PC++, addr_zp0);
-
-        //cycle 2: dummy read (always)
-        addr_zp0 += X;//wrap around if crossed;
-
-        //cycle 3: read
-        fetch(addr_zp0, fetch_buf);//fetch low byte;
-        addr_abs = (Word)fetch_buf & (Word)0x00ff;
-
-        //cycle 4: read
-        addr_zp0 += 1;//still wrap around if crossed;
-        fetch(addr_zp0, fetch_buf);//fetch high byte within zero page;
-        addr_abs |= (Word)fetch_buf << 8;
+        ////cycle 1: read
+        //fetch(PC++, addr_zp0);
+        ////cycle 2: dummy read (always)
+        //addr_zp0 += X;//wrap around if crossed;
+        ////cycle 3: read
+        //fetch(addr_zp0, fetch_buf);//fetch low byte;
+        //addr_abs = (Word)fetch_buf & (Word)0x00ff;
+        ////cycle 4: read
+        //addr_zp0 += 1;//still wrap around if crossed;
+        //fetch(addr_zp0, fetch_buf);//fetch high byte within zero page;
+        //addr_abs |= (Word)fetch_buf << 8;
+        //return 0;
         
+        fetch(PC++, addr_zp0);
+        addr_zp0 += X;//wrap around if crossed;
+        fetch(addr_zp0, fetch_buf);
+        addr_abs = fetch_buf;
+        ++addr_zp0;//wrap around if crossed;
+        fetch(addr_zp0, fetch_buf);
+        addr_abs |= fetch_buf << 8;
         return 0;
     }
     
@@ -579,26 +645,19 @@ namespace nes {
         //in instr contains the zero page location of the least signif byte of 16 bit addr;
         //FORMULA: val = PEEK(PEEK(arg) + PEEK((arg + 1) % 256) * 256 + Y)
 
-        //cycle 1: read
         fetch(PC++, addr_zp0);
-        
-        //cycle 2: read
         fetch(addr_zp0, fetch_buf); //fetch low byte;
-        addr_abs = (Word)fetch_buf & (Word)0xff;
-        
-        //cycle 3: dummy read, depends on:
+        addr_abs = fetch_buf;
+        //dummy read at cycle 3, depends on:
         //  for LOAD  instr: if page crossed
         //  for STORE instr: always
-        addr_abs += Y;
-        if (addr_abs & (Word)0xff00) temp_byte = 1;//page cross check;
-        else temp_byte = 0;
-
-        //cycle 3: read
-        addr_zp0 += 1;//wrap around if crossed;
+        ++addr_zp0;
         fetch(addr_zp0, fetch_buf);
-        addr_abs += (Word)fetch_buf << 8;//use operator+= : above "addr_abs += Y" may have carry out onto bit 8;
-        
-        return temp_byte;
+        addr_abs |= fetch_buf << 8;
+        addr_abs += Y;//wrap around if crossed;
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        else return 0;
     }
 
     //==================================================================
@@ -641,11 +700,16 @@ namespace nes {
 
     inline void CPU::branch(bool test) {
         if (test) {
-            addr_abs = PC + addr_rel;
             ++cycles;      //if branch suceeds;
-            if ((addr_abs & (Word)0xff00) != (PC & (Word)0xff00))
+            temp_word = PC + addr_rel;
+            if ((temp_word & (Word)0xff00) != (PC & (Word)0xff00))
                 ++cycles;  //if to a new page;
-            PC = addr_abs;
+            else {//so that this is a taken-branch-not-crossing;
+                if (irq_need && !irq_pending)
+                    irq_need = false;
+                //TODO : NMI would also be delayed;
+            }
+            PC = temp_word;
         }
     }
 
@@ -658,14 +722,14 @@ namespace nes {
     Byte CPU::BCS(){
         //REL;
         //if the carry flag is set;
-        branch(P.C);
+        branch(P.C == 1);
         return 0;
     }
 
     Byte CPU::BEQ(){
         //REL;
         //if the zero flag is set;
-        branch(P.Z);
+        branch(P.Z == 1);
         return 0;
     }
     Byte CPU::BIT(){
@@ -679,7 +743,7 @@ namespace nes {
     Byte CPU::BMI(){
         //REL;
         //if the negative flag is set;
-        branch(P.N);
+        branch(P.N == 1);
         return 0;
     }
     Byte CPU::BNE(){
@@ -696,25 +760,27 @@ namespace nes {
     }
 
     Byte CPU::BRK(){
-        //IMP       
-        //push the next instr addr;
-        ++PC;
-        push((PC >> 8) & (Word)0x00ff);//push high byte first;
+        //IMP
+        //cycle 3 : push high byte of PC first;
+        ++PC; //a 6502 quirk: BRK() pushes instr addr + 2;
+        push((PC >> 8) & 0x00ff);
+        //cycle 4:
         push(PC & (Word)0xff);
 
-        //push status flags;
-        //  BRK should push status with bits 4 and 5 set
-        set_flag(FLAG::U, true);
-        push((P.val | FLAG::B));//FLAG::B is a transient state;
+        /* --------------------- actual polling point --------------------- */
+
+        //cycle 5: push status flags;
+        temp_byte = P.val;
+        temp_byte |= (FLAG::U | FLAG::B);//BRK should pushes status byte with bits 4 and 5 set;
+        push(temp_byte);                 //while FLAG::B is a transient state;
 
         //shut down interrupt;
-        set_flag(FLAG::I, true);//Note the order when FLAG::I should be set, ie, after pushing status flags;
+        P.I = 1;//Note the order when FLAG::I should be set, ie, after pushing status flags;
         
-        //goto irq handler;
-        fetch(kIRQ_VECTOR, fetch_buf);
-        PC = fetch_buf;
-        fetch(kIRQ_VECTOR + 1, fetch_buf);
-        PC |= (Word)fetch_buf << 8;
+        //BRK() could be hijacked by IRQ or NMI;
+        phase = Instr_Phase::interrupt;
+        run_interrupt_sequence = true; //goto interrupt_seq_end();
+
         return 0;
     }
     Byte CPU::BVC(){
@@ -726,28 +792,28 @@ namespace nes {
     Byte CPU::BVS(){
         //REL;
         //if the overflow flag is set;
-        branch(P.V);
+        branch(P.V == 1);
         return 0;
     }
     Byte CPU::CLC(){
         //IMP
-        set_flag(FLAG::C, false);
+        P.C = 0;
         return 0;
     }
     Byte CPU::CLD(){
         //IMP
-        set_flag(FLAG::D, false);
+        P.D = 0;
         return 0;
     }
 
     Byte CPU::CLI(){
         //IMP
-        set_flag(FLAG::I, false);
+        P.I = 0;
         return 0;
     }
     Byte CPU::CLV(){
         //IMP
-        set_flag(FLAG::V, false);
+        P.V = 0;
         return 0;
     }
 
@@ -763,7 +829,7 @@ namespace nes {
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
         fetch(addr_abs, fetch_buf);
         cmp(A);
-        return 1; // <-- why?
+        return 1; //reference: 6502 introduction;
     }
     Byte CPU::CPX(){
         //IMM, ZP0, ABS;
@@ -885,7 +951,7 @@ namespace nes {
     Byte CPU::LSR(){
         //ACCUM, ZP0, ZPX, ABS, ABX;
         fetch(addr_abs, fetch_buf);
-        set_flag(FLAG::C, (bool)(fetch_buf & (Byte)0x01));
+        set_flag(FLAG::C, (bool)(fetch_buf & 0x01));
         fetch_buf >>= 1;
         set_flag(FLAG::Z, fetch_buf == 0);
         set_flag(FLAG::N, signof(fetch_buf));
@@ -893,7 +959,7 @@ namespace nes {
         return 0;
     }
     Byte CPU::LSR_A() {
-        set_flag(FLAG::C, (bool)(A & (Byte)0x01));
+        set_flag(FLAG::C, (bool)(A & 0x01));
         A >>= 1;
         set_flag(FLAG::Z, A == 0);
         set_flag(FLAG::N, signof(A));
@@ -932,24 +998,27 @@ namespace nes {
         //IMP
         //"FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed."
         push((P.val | FLAG::B | FLAG::U));
-        set_flag(FLAG::B, false);//explicitly clear FLAG::B for sure;
-        //set_flag(FLAG::U, false);
+        P.B = 0;//explicitly clear FLAG::B for sure;
+        P.U = 0;
         return 0;
     }
     Byte CPU::PLA(){
         //IMP
-        pull(A);
+        ++S;
+        fetch(kSTACK_BASE + S, fetch_buf);
+        A = fetch_buf;
         set_flag(FLAG::Z, A == 0);
         set_flag(FLAG::N, signof(A));
         return 0;
     }
     Byte CPU::PLP(){
         //IMP
-        pull(P.val);
+        pull(temp_byte);
+        P.val = temp_byte;
+        P.U = 1;
         //"The CPU pushes a value with B clear during an interrupt, 
         //  pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
-        set_flag(FLAG::U, true);
         return 0;
     }
     Byte CPU::ROL(){
@@ -960,9 +1029,9 @@ namespace nes {
         temp_byte = fetch_buf;
         fetch_buf <<= 1;
         fetch_buf |= P.C;
+        set_flag(FLAG::N, signof(fetch_buf));
         set_flag(FLAG::C, signof(temp_byte));
         set_flag(FLAG::Z, fetch_buf == 0);
-        set_flag(FLAG::N, signof(fetch_buf));
         store(addr_abs, fetch_buf);
         return 0;
     }
@@ -971,9 +1040,9 @@ namespace nes {
         temp_byte = A;
         A <<= 1;
         A |= P.C;
+        set_flag(FLAG::N, signof(A));
         set_flag(FLAG::C, signof(temp_byte));
         set_flag(FLAG::Z, A == 0);
-        set_flag(FLAG::N, signof(A));
         return 0;
     }
 
@@ -985,7 +1054,7 @@ namespace nes {
         temp_byte = fetch_buf & (Byte)0x01;
         fetch_buf >>= 1;
         fetch_buf |= (P.C << 7);
-        set_flag(FLAG::N, P.C);
+        set_flag(FLAG::N, signof(fetch_buf));
         set_flag(FLAG::C, temp_byte);
         set_flag(FLAG::Z, fetch_buf == 0);
         store(addr_abs, fetch_buf);
@@ -993,10 +1062,10 @@ namespace nes {
     }
     Byte CPU::ROR_A() {
         //This func is only used by ACCUM mode;
-        temp_byte = A & (Byte)0x01;
+        temp_byte = A & (Byte)0x01;//preserve old bit 0;
         A >>= 1;
-        A |= (P.C << 7);
-        set_flag(FLAG::N, P.C);//carry becomes bit 7, which decide nagetive flag;
+        A |= (P.C << 7);//fill bit 7 with the current value of carry flag;
+        set_flag(FLAG::N, signof(A));
         set_flag(FLAG::C, temp_byte);//update carry flag;
         set_flag(FLAG::Z, A == 0);
         return 0;
@@ -1008,8 +1077,9 @@ namespace nes {
         //"The CPU pushes a value with B clear during an interrupt, 
         //  pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
-        set_flag(FLAG::B, false);
-        //set_flag(FLAG::U, false);  <-- do not need to clear a FLAG::U, for there is no a physic bit being FLAG::U;
+        P.B = 0;
+        P.U = 0;
+
         //pull PC;
         pull(temp_byte);//pull low byte first;
         PC = temp_byte;
@@ -1055,18 +1125,18 @@ namespace nes {
 
     Byte CPU::SEC(){
         //IMP
-        set_flag(FLAG::C, true);
+        P.C = 1;
         return 0;
     }
     Byte CPU::SED(){
         //IMP
-        set_flag(FLAG::D, true);
+        P.D = 1;
         return 0;
     }
 
     Byte CPU::SEI(){
         //IMP
-        set_flag(FLAG::I, true);
+        P.I = 1;
         return 0;
     }
     Byte CPU::STA(){
@@ -1122,8 +1192,8 @@ namespace nes {
     Byte CPU::TYA(){
         //IMP
         A = Y;
-        set_flag(FLAG::Z, Y == 0);
-        set_flag(FLAG::N, signof(Y));
+        set_flag(FLAG::Z, A == 0);
+        set_flag(FLAG::N, signof(A));
         return 0;
     }
     
