@@ -10,12 +10,14 @@ namespace nes {
 
     class CPU {
     public:
+        using ADDR_MODE = Byte(CPU::*)(void);
+        using OPERATION = Byte(CPU::*)(void);
+
         CPU();
         ~CPU();
         void connect(MainBus *_bus);
         void exe_instr();
         void clock();
-        void clock_s();
         void reset();
         void irq();
         void nmi();
@@ -62,6 +64,17 @@ namespace nes {
         Byte ROL_A(); //ROL {ACCUM}
         Byte ROR_A(); //ROR {ACCUM}
 
+        //Unofficial opcodes catcher:
+        Byte XXX();
+
+        //Unofficail opcodes:
+        //Byte AHX(); Byte ALR(); Byte ANC(); Byte ARR();
+        //Byte AXS(); Byte DCP(); Byte ISC(); Byte LAS();
+        //Byte LAX(); Byte NOP(); Byte RLA(); Byte RRA();
+        //Byte SAX(); Byte SHX(); Byte SHY(); 
+        Byte SLO();
+        //Byte SRE(); Byte STP(); Byte TAS(); Byte XAA();
+
         //helper functions for easy implementation of opcodes:
         void set_flag(FLAG flag, bool test); //helper function for set flags;
         void adc(); //helper function for ADC() and SBC();
@@ -69,9 +82,6 @@ namespace nes {
         void push(Byte val); //helper function for stack operation;
         void pull(Byte &val);
         void branch(bool test); //helper function for branch instrs;
-
-        //Unofficial opcodes catcher:
-        Byte XXX();
 
     public://temporarily set to public for dubugging;
         Byte A = 0;    //accumulator;
@@ -87,9 +97,8 @@ namespace nes {
         Word addr_abs = 0;
         Word addr_rel = 0;
         Byte cur_opcode = 0;
-
+        
         Instr_Phase phase = Instr_Phase::instr_fetch;
-        bool run_interrupt_sequence = false;
 
         bool irq_pending = false;//internal signal for irq;
         bool irq_need = false;
@@ -102,17 +111,170 @@ namespace nes {
         Byte temp_byte = 0;
 
         //CPU instruction entry;
-        struct INSTR {
-            std::string name;
-            Byte(CPU::* operate)(void) = nullptr;
-            Byte(CPU::* addrMode)(void) = nullptr;
-            Byte cycles = 0;
+        //struct INSTR {
+        //    std::string name;
+        //    Byte(CPU::* operate)(void) = nullptr;
+        //    Byte(CPU::* addrMode)(void) = nullptr;
+        //    Byte cycles = 0;
+        //};
+        //INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
+
+        MainBus* mainBus = nullptr;
+
+        static constexpr ADDR_MODE addr_mode_mtx[kMAX_INSTR_MTX_SIZE] = {
+            //  0           1           2          3        4           5           6         7         8           9       A           B           C           D           E       F
+            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+            & CPU::ABS,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::IND,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
+            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
+            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
         };
-        INSTR instr_mtx[kMAX_INSTR_MTX_SIZE];
-
-        MainBus *mainBus = nullptr;
-
+        static constexpr OPERATION operation_mtx[kMAX_INSTR_MTX_SIZE] = {
+            //  0           1           2          3        4           5           6         7         8           9        A           B           C           D           E       F
+            & CPU::BRK,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::PHP,& CPU::ORA,& CPU::ASL_A, & CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
+            & CPU::BPL,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::CLC,& CPU::ORA,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
+            & CPU::JSR,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::PLP,& CPU::AND,& CPU::ROL_A, & CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,
+            & CPU::BMI,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::SEC,& CPU::AND,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,
+            & CPU::RTI,& CPU::EOR,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,& CPU::PHA,& CPU::EOR,& CPU::LSR_A, & CPU::XXX,& CPU::JMP,& CPU::EOR,& CPU::LSR,& CPU::XXX,
+            & CPU::BVC,& CPU::EOR,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,& CPU::CLI,& CPU::EOR,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,
+            & CPU::RTS,& CPU::ADC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,& CPU::PLA,& CPU::ADC,& CPU::ROR_A, & CPU::XXX,& CPU::JMP,& CPU::ADC,& CPU::ROR,& CPU::XXX,
+            & CPU::BVS,& CPU::ADC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,& CPU::SEI,& CPU::ADC,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,
+            & CPU::XXX,& CPU::STA,& CPU::XXX,& CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,& CPU::DEY,& CPU::XXX,& CPU::TXA,   & CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,
+            & CPU::BCC,& CPU::STA,& CPU::XXX,& CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,& CPU::TYA,& CPU::STA,& CPU::TXS,   & CPU::XXX,& CPU::XXX,& CPU::STA,& CPU::XXX,& CPU::XXX,
+            & CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::TAY,& CPU::LDA,& CPU::TAX,   & CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,
+            & CPU::BCS,& CPU::LDA,& CPU::XXX,& CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::CLV,& CPU::LDA,& CPU::TSX,   & CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,
+            & CPU::CPY,& CPU::CMP,& CPU::XXX,& CPU::XXX,& CPU::CPY,& CPU::CMP,& CPU::DEC,& CPU::XXX,& CPU::INY,& CPU::CMP,& CPU::DEX,   & CPU::XXX,& CPU::CPY,& CPU::CMP,& CPU::DEC,& CPU::XXX,
+            & CPU::BNE,& CPU::CMP,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::CMP,& CPU::DEC,& CPU::XXX,& CPU::CLD,& CPU::CMP,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::CMP,& CPU::DEC,& CPU::XXX,
+            & CPU::CPX,& CPU::SBC,& CPU::XXX,& CPU::XXX,& CPU::CPX,& CPU::SBC,& CPU::INC,& CPU::XXX,& CPU::INX,& CPU::SBC,& CPU::NOP,   & CPU::SBC,& CPU::CPX,& CPU::SBC,& CPU::INC,& CPU::XXX,
+            & CPU::BEQ,& CPU::SBC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::SBC,& CPU::INC,& CPU::XXX,& CPU::SED,& CPU::SBC,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::SBC,& CPU::INC,& CPU::XXX,
+        };
+        static constexpr Byte base_cycle_mtx[kMAX_INSTR_MTX_SIZE] = {
+          //0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+            7,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	4,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	4,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            6,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	3,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	5,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
+            2,	6,	0,	6,	4,	4,	4,	4,	2,	5,	2,	5,	5,	5,	5,	5,
+            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
+            2,	5,	0,	5,	4,	4,	4,	4,	2,	4,	2,	4,	4,	4,	4,	4,
+            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+        };
+        static constexpr char instr_name_mtx[kMAX_INSTR_MTX_SIZE][4] = {
+            //0     1       2       3       4       5       6       7       8       9       A       B       C       D       E       F
+            "BRK",	"ORA",	"STP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",	"PHP",	"ORA",	"ASL",	"ANC",	"NOP",	"ORA",	"ASL",	"SLO",
+            "BPL",	"ORA",	"STP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",	"CLC",	"ORA",	"NOP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",
+            "JSR",	"AND",	"STP",	"RLA",	"BIT",	"AND",	"ROL",	"RLA",	"PLP",	"AND",	"ROL",	"ANC",	"BIT",	"AND",	"ROL",	"RLA",
+            "BMI",	"AND",	"STP",	"RLA",	"NOP",	"AND",	"ROL",	"RLA",	"SEC",	"AND",	"NOP",	"RLA",	"NOP",	"AND",	"ROL",	"RLA",
+            "RTI",	"EOR",	"STP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",	"PHA",	"EOR",	"LSR",	"ALR",	"JMP",	"EOR",	"LSR",	"SRE",
+            "BVC",	"EOR",	"STP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",	"CLI",	"EOR",	"NOP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",
+            "RTS",	"ADC",	"STP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",	"PLA",	"ADC",	"ROR",	"ARR",	"JMP",	"ADC",	"ROR",	"RRA",
+            "BVS",	"ADC",	"STP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",	"SEI",	"ADC",	"NOP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",
+            "NOP",	"STA",	"NOP",	"SAX",	"STY",	"STA",	"STX",	"SAX",	"DEY",	"NOP",	"TXA",	"XAA",	"STY",	"STA",	"STX",	"SAX",
+            "BCC",	"STA",	"STP",	"AHX",	"STY",	"STA",	"STX",	"SAX",	"TYA",	"STA",	"TXS",	"TAS",	"SHY",	"STA",	"SHX",	"AHX",
+            "LDY",	"LDA",	"LDX",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",	"TAY",	"LDA",	"TAX",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",
+            "BCS",	"LDA",	"STP",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",	"CLV",	"LDA",	"TSX",	"LAS",	"LDY",	"LDA",	"LDX",	"LAX",
+            "CPY",	"CMP",	"NOP",	"DCP",	"CPY",	"CMP",	"DEC",	"DCP",	"INY",	"CMP",	"DEX",	"AXS",	"CPY",	"CMP",	"DEC",	"DCP",
+            "BNE",	"CMP",	"STP",	"DCP",	"NOP",	"CMP",	"DEC",	"DCP",	"CLD",	"CMP",	"NOP",	"DCP",	"NOP",	"CMP",	"DEC",	"DCP",
+            "CPX",	"SBC",	"NOP",	"ISC",	"CPX",	"SBC",	"INC",	"ISC",	"INX",	"SBC",	"NOP",	"SBC",	"CPX",	"SBC",	"INC",	"ISC",
+            "BEQ",	"SBC",	"STP",	"ISC",	"NOP",	"SBC",	"INC",	"ISC",	"SED",	"SBC",	"NOP",	"ISC",	"NOP",	"SBC",	"INC",	"ISC",
+        };
     };
+
+    //const CPU::ADDR_MODE addr_mode_mtx[kMAX_INSTR_MTX_SIZE] = {
+    //    //  0           1           2          3        4           5           6         7         8           9       A           B           C           D           E       F
+    //    & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //    & CPU::ABS,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //    & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //    & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::IND,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //    & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
+    //    & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
+    //    & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //    & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
+    //    & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+    //};
+    //const CPU::OPERATION operation_mtx[kMAX_INSTR_MTX_SIZE] = {
+    //    //  0           1           2          3        4           5           6         7         8           9        A           B           C           D           E       F
+    //    & CPU::BRK,& CPU::ORA,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::XXX,& CPU::PHP,& CPU::ORA,& CPU::ASL_A, & CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::XXX,
+    //    & CPU::BPL,& CPU::ORA,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::XXX,& CPU::CLC,& CPU::ORA,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::XXX,
+    //    & CPU::JSR,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::PLP,& CPU::AND,& CPU::ROL_A, & CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,
+    //    & CPU::BMI,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::SEC,& CPU::AND,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,
+    //    & CPU::RTI,& CPU::EOR,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,& CPU::PHA,& CPU::EOR,& CPU::LSR_A, & CPU::XXX,& CPU::JMP,& CPU::EOR,& CPU::LSR,& CPU::XXX,
+    //    & CPU::BVC,& CPU::EOR,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,& CPU::CLI,& CPU::EOR,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,
+    //    & CPU::RTS,& CPU::ADC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,& CPU::PLA,& CPU::ADC,& CPU::ROR_A, & CPU::XXX,& CPU::JMP,& CPU::ADC,& CPU::ROR,& CPU::XXX,
+    //    & CPU::BVS,& CPU::ADC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,& CPU::SEI,& CPU::ADC,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::ADC,& CPU::ROR,& CPU::XXX,
+    //    & CPU::XXX,& CPU::STA,& CPU::XXX,& CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,& CPU::DEY,& CPU::XXX,& CPU::TXA,   & CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,
+    //    & CPU::BCC,& CPU::STA,& CPU::XXX,& CPU::XXX,& CPU::STY,& CPU::STA,& CPU::STX,& CPU::XXX,& CPU::TYA,& CPU::STA,& CPU::TXS,   & CPU::XXX,& CPU::XXX,& CPU::STA,& CPU::XXX,& CPU::XXX,
+    //    & CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::TAY,& CPU::LDA,& CPU::TAX,   & CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,
+    //    & CPU::BCS,& CPU::LDA,& CPU::XXX,& CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,& CPU::CLV,& CPU::LDA,& CPU::TSX,   & CPU::XXX,& CPU::LDY,& CPU::LDA,& CPU::LDX,& CPU::XXX,
+    //    & CPU::CPY,& CPU::CMP,& CPU::XXX,& CPU::XXX,& CPU::CPY,& CPU::CMP,& CPU::DEC,& CPU::XXX,& CPU::INY,& CPU::CMP,& CPU::DEX,   & CPU::XXX,& CPU::CPY,& CPU::CMP,& CPU::DEC,& CPU::XXX,
+    //    & CPU::BNE,& CPU::CMP,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::CMP,& CPU::DEC,& CPU::XXX,& CPU::CLD,& CPU::CMP,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::CMP,& CPU::DEC,& CPU::XXX,
+    //    & CPU::CPX,& CPU::SBC,& CPU::XXX,& CPU::XXX,& CPU::CPX,& CPU::SBC,& CPU::INC,& CPU::XXX,& CPU::INX,& CPU::SBC,& CPU::NOP,   & CPU::XXX,& CPU::CPX,& CPU::SBC,& CPU::INC,& CPU::XXX,
+    //    & CPU::BEQ,& CPU::SBC,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::SBC,& CPU::INC,& CPU::XXX,& CPU::SED,& CPU::SBC,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::SBC,& CPU::INC,& CPU::XXX,
+    //};
+    //const Byte base_cycle_mtx[kMAX_INSTR_MTX_SIZE] = {
+    //  //0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+    //    7,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	4,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //    6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	4,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //    6,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	3,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //    6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	5,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //    2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
+    //    2,	6,	0,	6,	4,	4,	4,	4,	2,	5,	2,	5,	5,	5,	5,	5,
+    //    2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
+    //    2,	5,	0,	5,	4,	4,	4,	4,	2,	4,	2,	4,	4,	4,	4,	4,
+    //    2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //    2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
+    //    2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+    //};
+    //const char instr_name_mtx[kMAX_INSTR_MTX_SIZE][4] = {
+    //    //0     1       2       3       4       5       6       7       8       9       A       B       C       D       E       F
+    //    "BRK",	"ORA",	"STP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",	"PHP",	"ORA",	"ASL",	"ANC",	"NOP",	"ORA",	"ASL",	"SLO",
+    //    "BPL",	"ORA",	"STP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",	"CLC",	"ORA",	"NOP",	"SLO",	"NOP",	"ORA",	"ASL",	"SLO",
+    //    "JSR",	"AND",	"STP",	"RLA",	"BIT",	"AND",	"ROL",	"RLA",	"PLP",	"AND",	"ROL",	"ANC",	"BIT",	"AND",	"ROL",	"RLA",
+    //    "BMI",	"AND",	"STP",	"RLA",	"NOP",	"AND",	"ROL",	"RLA",	"SEC",	"AND",	"NOP",	"RLA",	"NOP",	"AND",	"ROL",	"RLA",
+    //    "RTI",	"EOR",	"STP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",	"PHA",	"EOR",	"LSR",	"ALR",	"JMP",	"EOR",	"LSR",	"SRE",
+    //    "BVC",	"EOR",	"STP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",	"CLI",	"EOR",	"NOP",	"SRE",	"NOP",	"EOR",	"LSR",	"SRE",
+    //    "RTS",	"ADC",	"STP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",	"PLA",	"ADC",	"ROR",	"ARR",	"JMP",	"ADC",	"ROR",	"RRA",
+    //    "BVS",	"ADC",	"STP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",	"SEI",	"ADC",	"NOP",	"RRA",	"NOP",	"ADC",	"ROR",	"RRA",
+    //    "NOP",	"STA",	"NOP",	"SAX",	"STY",	"STA",	"STX",	"SAX",	"DEY",	"NOP",	"TXA",	"XAA",	"STY",	"STA",	"STX",	"SAX",
+    //    "BCC",	"STA",	"STP",	"AHX",	"STY",	"STA",	"STX",	"SAX",	"TYA",	"STA",	"TXS",	"TAS",	"SHY",	"STA",	"SHX",	"AHX",
+    //    "LDY",	"LDA",	"LDX",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",	"TAY",	"LDA",	"TAX",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",
+    //    "BCS",	"LDA",	"STP",	"LAX",	"LDY",	"LDA",	"LDX",	"LAX",	"CLV",	"LDA",	"TSX",	"LAS",	"LDY",	"LDA",	"LDX",	"LAX",
+    //    "CPY",	"CMP",	"NOP",	"DCP",	"CPY",	"CMP",	"DEC",	"DCP",	"INY",	"CMP",	"DEX",	"AXS",	"CPY",	"CMP",	"DEC",	"DCP",
+    //    "BNE",	"CMP",	"STP",	"DCP",	"NOP",	"CMP",	"DEC",	"DCP",	"CLD",	"CMP",	"NOP",	"DCP",	"NOP",	"CMP",	"DEC",	"DCP",
+    //    "CPX",	"SBC",	"NOP",	"ISC",	"CPX",	"SBC",	"INC",	"ISC",	"INX",	"SBC",	"NOP",	"SBC",	"CPX",	"SBC",	"INC",	"ISC",
+    //    "BEQ",	"SBC",	"STP",	"ISC",	"NOP",	"SBC",	"INC",	"ISC",	"SED",	"SBC",	"NOP",	"ISC",	"NOP",	"SBC",	"INC",	"ISC",
+    //};
 
 };//end nes
 

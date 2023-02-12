@@ -140,7 +140,7 @@ inline bool main_step() {
 inline void print_ips() {
 	span = std::chrono::duration_cast<SPAN>(t1 - t0);
 	if (1.0 - span.count() < 0.0) {
-		std::cout << "i" << std::setw(10) << global_counter << " : " << std::setw(10) << (global_counter - cycles) << " fps";
+		std::cout << "i" << std::setw(10) << global_counter << " : " << std::setw(10) << (global_counter - cycles) << " ips";
 		std::cout << "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
 		t0 = t1;
 		cycles = global_counter;
@@ -202,7 +202,7 @@ inline void print_time() {
 */
 
 //only need to change here:
-#define file_name "04-zero_page"
+#define file_name "16-special"
 
 
 int main() {
@@ -211,7 +211,7 @@ int main() {
 	std::clog << std::endl;
 	std::clog << "============================================" << std::endl;
 	print_time();
-	std::clog << "Test: " "instr_test-v5 " file_name << std::endl;
+	std::clog << "Test: S_MODE instr_test-v5 " file_name << std::endl;
 	
 	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\instr_test-v5\\rom_singles\\" file_name ".nes"))
 		return 0;

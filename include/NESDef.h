@@ -7,7 +7,7 @@ namespace nes {
 
 	using Word = std::uint16_t;
 	using Byte = std::uint8_t;
-	using Counter = unsigned long long;
+	using Counter = signed long long; //counter should prevent decrementing from 0 to a huge number;
 
 	constexpr Word kMAX_INSTR_MTX_SIZE = 0x100;  //max size of instruction matrix;
 
@@ -57,7 +57,7 @@ namespace nes {
 		N = 0b1000'0000,
 	};
 
-	enum Instr_Phase {
+	enum class Instr_Phase {
 		instr_fetch,
 		execute,
 		extra,

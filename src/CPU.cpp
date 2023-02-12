@@ -2,179 +2,181 @@
 
 #include "CPU.h"
 
+#define S_MODE
+
 namespace nes {
 
     CPU::CPU(){
-        for (int i = 0; i < 0x100; ++i)
-            if (!instr_mtx[i].name.empty())
-                instr_mtx[i].name.clear();
-
-        instr_mtx[	0x00	] = {	"BRK"	, 	&CPU::BRK	, 	&CPU::IMP	, 	7	};
-        instr_mtx[	0x01	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0x05	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x06	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0x08	] = {	"PHP"	, 	&CPU::PHP	, 	&CPU::IMP	, 	3	};
-        instr_mtx[	0x09	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x0A	] = {	"ASL"	, 	&CPU::ASL_A	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x0D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x0E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0x10	] = {	"BPL"	, 	&CPU::BPL	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0x11	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0x15	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x16	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0x18	] = {	"CLC"	, 	&CPU::CLC	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x19	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0x1A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0x1D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0x1E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABX	, 	7	};
-        instr_mtx[	0x20	] = {	"JSR"	, 	&CPU::JSR	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0x21	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0x24	] = {	"BIT"	, 	&CPU::BIT	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x25	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x26	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0x28	] = {	"PLP"	, 	&CPU::PLP	, 	&CPU::IMP	, 	4	};
-        instr_mtx[	0x29	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x2A	] = {	"ROL"	, 	&CPU::ROL_A	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x2C	] = {	"BIT"	, 	&CPU::BIT	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x2D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x2E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0x30	] = {	"BMI"	, 	&CPU::BMI	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0x31	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0x35	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x36	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0x38	] = {	"SEC"	, 	&CPU::SEC	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x39	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0x3A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0x3D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0x3E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABX	, 	7	};
-        instr_mtx[	0x40	] = {	"RTI"	, 	&CPU::RTI	, 	&CPU::IMP	, 	6	};
-        instr_mtx[	0x41	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0x45	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x46	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0x48	] = {	"PHA"	, 	&CPU::PHA	, 	&CPU::IMP	, 	3	};
-        instr_mtx[	0x49	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x4A	] = {	"LSR"	, 	&CPU::LSR_A	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x4C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::ABS	, 	3	};
-        instr_mtx[	0x4D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x4E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0x50	] = {	"BVC"	, 	&CPU::BVC	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0x51	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0x55	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x56	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0x58	] = {	"CLI"	, 	&CPU::CLI	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x59	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0x5A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0x5D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0x5E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABX	, 	7	};
-        instr_mtx[	0x60	] = {	"RTS"	, 	&CPU::RTS	, 	&CPU::IMP	, 	6	};
-        instr_mtx[	0x61	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0x65	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x66	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0x68	] = {	"PLA"	, 	&CPU::PLA	, 	&CPU::IMP	, 	4	};
-        instr_mtx[	0x69	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0x6A	] = {	"ROR"	, 	&CPU::ROR_A	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x6C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::IND	, 	5	};
-        instr_mtx[	0x6D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x6E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0x70	] = {	"BVS"	, 	&CPU::BVS	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0x71	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0x75	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x76	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0x78	] = {	"SEI"	, 	&CPU::SEI	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x79	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0x7A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0x7D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0x7E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABX	, 	7	};
-        instr_mtx[	0x81	] = {	"STA"	, 	&CPU::STA	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0x84	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x85	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x86	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0x88	] = {	"DEY"	, 	&CPU::DEY	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x8A	] = {	"TXA"	, 	&CPU::TXA	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x8C	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x8D	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x8E	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0x90	] = {	"BCC"	, 	&CPU::BCC	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0x91	] = {	"STA"	, 	&CPU::STA	, 	&CPU::IZY	, 	6	};
-        instr_mtx[	0x94	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x95	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0x96	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ZPY	, 	4	};
-        instr_mtx[	0x98	] = {	"TYA"	, 	&CPU::TYA	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x99	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABY	, 	5	};
-        instr_mtx[	0x9A	] = {	"TXS"	, 	&CPU::TXS	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0x9D	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABX	, 	5	};
-        instr_mtx[	0xA0	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xA1	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0xA2	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xA4	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xA5	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xA6	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xA8	] = {	"TAY"	, 	&CPU::TAY	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xA9	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xAA	] = {	"TAX"	, 	&CPU::TAX	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xAC	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xAD	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xAE	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xB0	] = {	"BCS"	, 	&CPU::BCS	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0xB1	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0xB4	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0xB5	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0xB6	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ZPY	, 	4	};
-        instr_mtx[	0xB8	] = {	"CLV"	, 	&CPU::CLV	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xB9	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0xBA	] = {	"TSX"	, 	&CPU::TSX	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xBC	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0xBD	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0xBE	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0xC0	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xC1	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0xC4	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xC5	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xC6	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0xC8	] = {	"INY"	, 	&CPU::INY	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xC9	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xCA	] = {	"DEX"	, 	&CPU::DEX	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xCC	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xCD	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xCE	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0xD0	] = {	"BNE"	, 	&CPU::BNE	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0xD1	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0xD5	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0xD6	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0xD8	] = {	"CLD"	, 	&CPU::CLD	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xD9	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0xDA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0xDD	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0xDE	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ABX	, 	7	};
-        instr_mtx[	0xE0	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xE1	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IZX	, 	6	};
-        instr_mtx[	0xE4	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xE5	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ZP0	, 	3	};
-        instr_mtx[	0xE6	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ZP0	, 	5	};
-        instr_mtx[	0xE8	] = {	"INX"	, 	&CPU::INX	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xE9	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IMM	, 	2	};
-        instr_mtx[	0xEA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xEC	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xED	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABS	, 	4	};
-        instr_mtx[	0xEE	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ABS	, 	6	};
-        instr_mtx[	0xF0	] = {	"BEQ"	, 	&CPU::BEQ	, 	&CPU::REL	, 	2	};
-        instr_mtx[	0xF1	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IZY	, 	5	};
-        instr_mtx[	0xF5	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ZPX	, 	4	};
-        instr_mtx[	0xF6	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ZPX	, 	6	};
-        instr_mtx[	0xF8	] = {	"SED"	, 	&CPU::SED	, 	&CPU::IMP	, 	2	};
-        instr_mtx[	0xF9	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABY	, 	4	};
-        instr_mtx[	0xFA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
-        instr_mtx[	0xFD	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABX	, 	4	};
-        instr_mtx[	0xFE	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ABX	, 	7	};
-        
-        for (int i = 0; i < 0x100; ++i){
-            if (instr_mtx[i].name.empty()){
-                instr_mtx[i].name = "XXX";
-                instr_mtx[i].operate = &CPU::XXX;
-                instr_mtx[i].addrMode = &CPU::IMP;
-                instr_mtx[i].cycles = 2;
-            }
-        }
+        //for (int i = 0; i < 0x100; ++i)
+        //    if (!instr_mtx[i].name.empty())
+        //        instr_mtx[i].name.clear();
+        //
+        //instr_mtx[	0x00	] = {	"BRK"	, 	&CPU::BRK	, 	&CPU::IMP	, 	7	};
+        //instr_mtx[	0x01	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0x05	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x06	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0x08	] = {	"PHP"	, 	&CPU::PHP	, 	&CPU::IMP	, 	3	};
+        //instr_mtx[	0x09	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0x0A	] = {	"ASL"	, 	&CPU::ASL_A	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x0D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x0E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0x10	] = {	"BPL"	, 	&CPU::BPL	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0x11	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0x15	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x16	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0x18	] = {	"CLC"	, 	&CPU::CLC	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x19	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0x1A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0x1D	] = {	"ORA"	, 	&CPU::ORA	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0x1E	] = {	"ASL"	, 	&CPU::ASL	, 	&CPU::ABX	, 	7	};
+        //instr_mtx[	0x20	] = {	"JSR"	, 	&CPU::JSR	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0x21	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0x24	] = {	"BIT"	, 	&CPU::BIT	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x25	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x26	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0x28	] = {	"PLP"	, 	&CPU::PLP	, 	&CPU::IMP	, 	4	};
+        //instr_mtx[	0x29	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0x2A	] = {	"ROL"	, 	&CPU::ROL_A	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x2C	] = {	"BIT"	, 	&CPU::BIT	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x2D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x2E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0x30	] = {	"BMI"	, 	&CPU::BMI	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0x31	] = {	"AND"	, 	&CPU::AND	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0x35	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x36	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0x38	] = {	"SEC"	, 	&CPU::SEC	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x39	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0x3A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0x3D	] = {	"AND"	, 	&CPU::AND	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0x3E	] = {	"ROL"	, 	&CPU::ROL	, 	&CPU::ABX	, 	7	};
+        //instr_mtx[	0x40	] = {	"RTI"	, 	&CPU::RTI	, 	&CPU::IMP	, 	6	};
+        //instr_mtx[	0x41	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0x45	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x46	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0x48	] = {	"PHA"	, 	&CPU::PHA	, 	&CPU::IMP	, 	3	};
+        //instr_mtx[	0x49	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0x4A	] = {	"LSR"	, 	&CPU::LSR_A	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x4C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::ABS	, 	3	};
+        //instr_mtx[	0x4D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x4E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0x50	] = {	"BVC"	, 	&CPU::BVC	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0x51	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0x55	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x56	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0x58	] = {	"CLI"	, 	&CPU::CLI	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x59	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0x5A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0x5D	] = {	"EOR"	, 	&CPU::EOR	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0x5E	] = {	"LSR"	, 	&CPU::LSR	, 	&CPU::ABX	, 	7	};
+        //instr_mtx[	0x60	] = {	"RTS"	, 	&CPU::RTS	, 	&CPU::IMP	, 	6	};
+        //instr_mtx[	0x61	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0x65	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x66	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0x68	] = {	"PLA"	, 	&CPU::PLA	, 	&CPU::IMP	, 	4	};
+        //instr_mtx[	0x69	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0x6A	] = {	"ROR"	, 	&CPU::ROR_A	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x6C	] = {	"JMP"	, 	&CPU::JMP	, 	&CPU::IND	, 	5	};
+        //instr_mtx[	0x6D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x6E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0x70	] = {	"BVS"	, 	&CPU::BVS	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0x71	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0x75	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x76	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0x78	] = {	"SEI"	, 	&CPU::SEI	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x79	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0x7A	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0x7D	] = {	"ADC"	, 	&CPU::ADC	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0x7E	] = {	"ROR"	, 	&CPU::ROR	, 	&CPU::ABX	, 	7	};
+        //instr_mtx[	0x81	] = {	"STA"	, 	&CPU::STA	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0x84	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x85	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x86	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0x88	] = {	"DEY"	, 	&CPU::DEY	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x8A	] = {	"TXA"	, 	&CPU::TXA	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x8C	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x8D	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x8E	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0x90	] = {	"BCC"	, 	&CPU::BCC	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0x91	] = {	"STA"	, 	&CPU::STA	, 	&CPU::IZY	, 	6	};
+        //instr_mtx[	0x94	] = {	"STY"	, 	&CPU::STY	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x95	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0x96	] = {	"STX"	, 	&CPU::STX	, 	&CPU::ZPY	, 	4	};
+        //instr_mtx[	0x98	] = {	"TYA"	, 	&CPU::TYA	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x99	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABY	, 	5	};
+        //instr_mtx[	0x9A	] = {	"TXS"	, 	&CPU::TXS	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0x9D	] = {	"STA"	, 	&CPU::STA	, 	&CPU::ABX	, 	5	};
+        //instr_mtx[	0xA0	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xA1	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0xA2	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xA4	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xA5	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xA6	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xA8	] = {	"TAY"	, 	&CPU::TAY	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xA9	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xAA	] = {	"TAX"	, 	&CPU::TAX	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xAC	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xAD	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xAE	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xB0	] = {	"BCS"	, 	&CPU::BCS	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0xB1	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0xB4	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0xB5	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0xB6	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ZPY	, 	4	};
+        //instr_mtx[	0xB8	] = {	"CLV"	, 	&CPU::CLV	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xB9	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0xBA	] = {	"TSX"	, 	&CPU::TSX	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xBC	] = {	"LDY"	, 	&CPU::LDY	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0xBD	] = {	"LDA"	, 	&CPU::LDA	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0xBE	] = {	"LDX"	, 	&CPU::LDX	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0xC0	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xC1	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0xC4	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xC5	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xC6	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0xC8	] = {	"INY"	, 	&CPU::INY	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xC9	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xCA	] = {	"DEX"	, 	&CPU::DEX	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xCC	] = {	"CPY"	, 	&CPU::CPY	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xCD	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xCE	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0xD0	] = {	"BNE"	, 	&CPU::BNE	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0xD1	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0xD5	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0xD6	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0xD8	] = {	"CLD"	, 	&CPU::CLD	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xD9	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0xDA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0xDD	] = {	"CMP"	, 	&CPU::CMP	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0xDE	] = {	"DEC"	, 	&CPU::DEC	, 	&CPU::ABX	, 	7	};
+        //instr_mtx[	0xE0	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xE1	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IZX	, 	6	};
+        //instr_mtx[	0xE4	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xE5	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ZP0	, 	3	};
+        //instr_mtx[	0xE6	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ZP0	, 	5	};
+        //instr_mtx[	0xE8	] = {	"INX"	, 	&CPU::INX	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xE9	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IMM	, 	2	};
+        //instr_mtx[	0xEA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xEC	] = {	"CPX"	, 	&CPU::CPX	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xED	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABS	, 	4	};
+        //instr_mtx[	0xEE	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ABS	, 	6	};
+        //instr_mtx[	0xF0	] = {	"BEQ"	, 	&CPU::BEQ	, 	&CPU::REL	, 	2	};
+        //instr_mtx[	0xF1	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::IZY	, 	5	};
+        //instr_mtx[	0xF5	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ZPX	, 	4	};
+        //instr_mtx[	0xF6	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ZPX	, 	6	};
+        //instr_mtx[	0xF8	] = {	"SED"	, 	&CPU::SED	, 	&CPU::IMP	, 	2	};
+        //instr_mtx[	0xF9	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABY	, 	4	};
+        //instr_mtx[	0xFA	] = {	"NOP"	, 	&CPU::NOP	, 	&CPU::IMP	, 	2	}; //unofficial
+        //instr_mtx[	0xFD	] = {	"SBC"	, 	&CPU::SBC	, 	&CPU::ABX	, 	4	};
+        //instr_mtx[	0xFE	] = {	"INC"	, 	&CPU::INC	, 	&CPU::ABX	, 	7	};
+        //
+        //for (int i = 0; i < 0x100; ++i){
+        //    if (instr_mtx[i].name.empty()){
+        //        instr_mtx[i].name = "XXX";
+        //        instr_mtx[i].operate = &CPU::XXX;
+        //        instr_mtx[i].addrMode = &CPU::IMP;
+        //        instr_mtx[i].cycles = 2;
+        //    }
+        //}
     }
 
     CPU::~CPU(){}
@@ -185,55 +187,50 @@ namespace nes {
 
     void CPU::exe_instr(){
         do {
-            clock_s();
+            clock();
         } while (cycles != 0);
         return;
     }
 
     void CPU::clock(){
+#ifndef S_MODE
         if (cycles == 0) {
             fetch(PC++, cur_opcode);
             P.U = 1;//always set unused bit 1;
-            INSTR& cur_instr = instr_mtx[cur_opcode];
-            cycles = cur_instr.cycles;
-            temp_byte = (this->*cur_instr.addrMode)();
-            temp_byte = temp_byte & (this->*cur_instr.operate)();
+            cycles = base_cycle_mtx[cur_opcode];
+            temp_byte = (this->*addr_mode_mtx[cur_opcode])();
+            temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
             //additional cycles;
             cycles += temp_byte;
             P.U = 1;
         }
-        cycles--;
-        return;
-    }
-
-    void CPU::clock_s() {
+#else
         switch (phase) {
-        case Instr_Phase::instr_fetch :
+        case Instr_Phase::instr_fetch:
             if (irq_pending || nmi_pending) {
                 interrupt_sequence_start();
             }
             else {
                 fetch(PC++, cur_opcode);
-                cycles = instr_mtx[cur_opcode].cycles;
+                cycles = base_cycle_mtx[cur_opcode];
                 phase = Instr_Phase::execute;
                 //According to Blarg, FLAG::B do not physically exist in Status Flags register;
                 //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
             }
             break;
-        case Instr_Phase::execute :
+        case Instr_Phase::execute:
             if (cycles == 1) {
-                INSTR& cur_instr = instr_mtx[cur_opcode];
-                temp_byte = (this->*cur_instr.addrMode)();
-                temp_byte &= (this->*cur_instr.operate)();
+                temp_byte = (this->*addr_mode_mtx[cur_opcode])();
+                temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
                 //additional cycles;
                 cycles += temp_byte;
                 phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
             }
             break;
-        case Instr_Phase::extra :
+        case Instr_Phase::extra:
             if (cycles == 1) phase = Instr_Phase::instr_fetch;
             break;
-        case Instr_Phase::interrupt :
+        case Instr_Phase::interrupt:
             if (cycles == 3) {
                 interrupt_sequence_end();
             }
@@ -241,14 +238,58 @@ namespace nes {
                 interrupt_sequence_clear();
             }
             break;
-        default :
+        default:
             std::cout << "CPU::clock::switch error" << std::endl;
             break;
         }
         detect_interrupt();
-        --cycles;
+#endif
+        cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
         return;
     }
+
+    //void CPU::clock_s() {
+    //    switch (phase) {
+    //    case Instr_Phase::instr_fetch :
+    //        if (irq_pending || nmi_pending) {
+    //            interrupt_sequence_start();
+    //        }
+    //        else {
+    //            fetch(PC++, cur_opcode);
+    //            cycles = base_cycle_mtx[cur_opcode];
+    //            phase = Instr_Phase::execute;
+    //            //According to Blarg, FLAG::B do not physically exist in Status Flags register;
+    //            //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
+    //        }
+    //        break;
+    //    case Instr_Phase::execute :
+    //        if (cycles == 1) {
+    //            temp_byte = (this->*addr_mode_mtx[cur_opcode])();
+    //            temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
+    //            //additional cycles;
+    //            cycles += temp_byte;
+    //            phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
+    //        }
+    //        break;
+    //    case Instr_Phase::extra :
+    //        if (cycles == 1) phase = Instr_Phase::instr_fetch;
+    //        break;
+    //    case Instr_Phase::interrupt :
+    //        if (cycles == 3) {
+    //            interrupt_sequence_end();
+    //        }
+    //        else if (cycles == 1) {
+    //            interrupt_sequence_clear();
+    //        }
+    //        break;
+    //    default :
+    //        std::cout << "CPU::clock::switch error" << std::endl;
+    //        break;
+    //    }
+    //    detect_interrupt();
+    //    --cycles;
+    //    return;
+    //}
 
     inline void CPU::detect_interrupt() {
         //update nmi internal signal cycle;
@@ -271,25 +312,27 @@ namespace nes {
         // interrupt sequence itself do not polling other interrupt;
         cycles = 7;
         phase = Instr_Phase::interrupt;
-        run_interrupt_sequence = true;
         //push PC;
         push((PC >> 8) & (Word)0x00ff);//push high byte first;
         push(PC & (Word)0x00ff);
         //dummy_read();
         //dummy_read();
         
-        /* ------- polling interrupt at 4th cycle of interrupt sequence --------- */
+        /* ------- polling interrupt after the 4th cycle of interrupt sequence --------- */
         
         //push STATUS_FLAGS;
-        temp_byte = P.val;
-        temp_byte &= ~FLAG::B;
-        temp_byte |= FLAG::U;//the only point that needs to care FLAG::U, ie, before pushing stack;
-        push(temp_byte);
-        //set FLAG::I after pushing stack;
-        P.I = 1;//shut down interrupt;
+        P.U = 1;
+        P.B = 0;       //irq and nmi push with B bit set to zero;
+        push(P.val);
+        //NOTE: FLAG::I should be set after the 4th cycle;
     }
 
     void CPU::interrupt_sequence_end() {
+        //shut down interrupt;
+        //Note the order when FLAG::I should be set :
+        //  after pushing status flags, which means after the 4th cycle;
+        P.I = 1;
+  
         //fetch correspond handler addr;
         if (nmi_need) {//priority give to nmi;
             nmi_need = false;
@@ -308,7 +351,6 @@ namespace nes {
 
     inline void CPU::interrupt_sequence_clear() {
         phase = Instr_Phase::instr_fetch;
-        run_interrupt_sequence = false;
     }
 
     void CPU::reset(){
@@ -418,66 +460,66 @@ namespace nes {
             line_addr = addr;
             std::string sInstr = "$" + hex(line_addr, 4) + ": ";
             fetch(addr++, opcode);
-            const INSTR& rInstr = instr_mtx[opcode];
-            sInstr += rInstr.name + " ";
+            sInstr += instr_name_mtx[opcode];
+            sInstr += " ";
 
-            if (rInstr.addrMode == &CPU::IMP)
+            if (addr_mode_mtx[opcode] == &CPU::IMP)
                 sInstr += " {IMP}";
-            else if (rInstr.addrMode == &CPU::IMM) {
+            else if (addr_mode_mtx[opcode] == &CPU::IMM) {
                 fetch(addr++, value);
                 sInstr += "#$" + hex(value, 2) + " {IMM}";
             }
-            else if (rInstr.addrMode == &CPU::ZP0) {
+            else if (addr_mode_mtx[opcode] == &CPU::ZP0) {
                 fetch(addr++, value);
                 sInstr += "$" + hex(value, 2) + " {ZP0}";
             }
-            else if (rInstr.addrMode == &CPU::ZPX) {
+            else if (addr_mode_mtx[opcode] == &CPU::ZPX) {
                 fetch(addr++, value);
                 sInstr += "$" + hex(value, 2) + ",X {ZPX}";
             }
-            else if (rInstr.addrMode == &CPU::ZPY) {
+            else if (addr_mode_mtx[opcode] == &CPU::ZPY) {
                 fetch(addr++, value);
                 sInstr += "$" + hex(value, 2) + ",Y {ZPY}";
             }
-            else if (rInstr.addrMode == &CPU::REL) {
+            else if (addr_mode_mtx[opcode] == &CPU::REL) {
                 fetch(addr++, value);
                 temp = value;
                 if (signof(value)) temp |= 0xff00;
                 sInstr += "$" + hex(value, 2) + " [$" + hex(addr + temp, 4) + "]" + " {REL}";
             }
-            else if (rInstr.addrMode == &CPU::ABS) {
+            else if (addr_mode_mtx[opcode] == &CPU::ABS) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
                 temp |= (Word)value << 8;
                 sInstr += "$" + hex(temp, 4) + " {ABS}";
             }
-            else if (rInstr.addrMode == &CPU::ABX) {
+            else if (addr_mode_mtx[opcode] == &CPU::ABX) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
                 temp |= (Word)value << 8;
                 sInstr += "$" + hex(temp, 4) + ",X {ABX}";
             }
-            else if (rInstr.addrMode == &CPU::ABY) {
+            else if (addr_mode_mtx[opcode] == &CPU::ABY) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
                 temp |= (Word)value << 8;
                 sInstr += "$" + hex(temp, 4) + ",Y {ABY}";
             }
-            else if (rInstr.addrMode == &CPU::IND) {
+            else if (addr_mode_mtx[opcode] == &CPU::IND) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
                 temp |= (Word)value << 8;
                 sInstr += "($" + hex(temp, 4) + ") {IND}";
             }
-            else if (rInstr.addrMode == &CPU::IZX) {
+            else if (addr_mode_mtx[opcode] == &CPU::IZX) {
                 fetch(addr++, value);
                 sInstr += "($" + hex(value, 2) + ",X) {IZX}";
             }
-            else if (rInstr.addrMode == &CPU::IZY) {
+            else if (addr_mode_mtx[opcode] == &CPU::IZY) {
                 fetch(addr++, value);
                 sInstr += "($" + hex(value, 2) + "),Y {IZY}";
             }
@@ -770,17 +812,19 @@ namespace nes {
         /* --------------------- actual polling point --------------------- */
 
         //cycle 5: push status flags;
-        temp_byte = P.val;
-        temp_byte |= (FLAG::U | FLAG::B);//BRK should pushes status byte with bits 4 and 5 set;
-        push(temp_byte);                 //while FLAG::B is a transient state;
+        P.B = 1;//BRK should pushes status byte with bits 4 and 5 set;
+        P.U = 1;
+        push(P.val); //while FLAG::B is a transient state;
 
-        //shut down interrupt;
-        P.I = 1;//Note the order when FLAG::I should be set, ie, after pushing status flags;
+        //NOTE: FLAG::I should be set after the 4th cycle,
+        //or it may inhibit the upcoming IRQs or NMIs;
         
+#ifndef S_MODE
+        interrupt_sequence_end();
+#else
         //BRK() could be hijacked by IRQ or NMI;
         phase = Instr_Phase::interrupt;
-        run_interrupt_sequence = true; //goto interrupt_seq_end();
-
+#endif
         return 0;
     }
     Byte CPU::BVC(){
@@ -967,18 +1011,10 @@ namespace nes {
     }
     Byte CPU::NOP(){
         //IMP
-        //unofficial NOP with different addressing mode;
-        switch (cur_opcode) {
-        case 0x1C:
-        case 0x3C:
-        case 0x5C:
-        case 0x7C:
-        case 0xDC:
-        case 0xFC:
-            return 1;
-            break;
-        }
-        return 0;
+        //unofficial NOP with different addressing mode has different cycles;
+        //NOP() only need to return 1, for only NOP_ABX is dynamic cycle;
+        //other addr mode of NOP do not variable on cycle (they just won't return an 1);
+        return 1;
     }
     Byte CPU::ORA(){
         //IMM, ZP0, ZPX, ABS, ABX, ABY, IZX, IZY;
@@ -986,7 +1022,7 @@ namespace nes {
         A = A | fetch_buf;
         set_flag(FLAG::Z, A == 0);
         set_flag(FLAG::N, signof(A));
-        return 1;//  <-- why?
+        return 1;//ref: 6502 introduction;
     }
 
     Byte CPU::PHA(){
@@ -999,22 +1035,19 @@ namespace nes {
         //"FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed."
         push((P.val | FLAG::B | FLAG::U));
         P.B = 0;//explicitly clear FLAG::B for sure;
-        P.U = 0;
+        //P.U = 0;
         return 0;
     }
     Byte CPU::PLA(){
         //IMP
-        ++S;
-        fetch(kSTACK_BASE + S, fetch_buf);
-        A = fetch_buf;
+        pull(A);
         set_flag(FLAG::Z, A == 0);
         set_flag(FLAG::N, signof(A));
         return 0;
     }
     Byte CPU::PLP(){
         //IMP
-        pull(temp_byte);
-        P.val = temp_byte;
+        pull(P.val);
         P.U = 1;
         //"The CPU pushes a value with B clear during an interrupt, 
         //  pushes a value with B set in response to PHP or BRK, 
@@ -1078,7 +1111,7 @@ namespace nes {
         //  pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
         P.B = 0;
-        P.U = 0;
+        //P.U = 0;
 
         //pull PC;
         pull(temp_byte);//pull low byte first;
@@ -1202,4 +1235,14 @@ namespace nes {
         return 0;
     }
 
+    /* -------------------- UNofficial Opcodes ------------------------ */
+
+    Byte CPU::SLO() {
+        //zp	zpx		izx	izy	abs	abx	aby
+        //SLO {adr} = ASL {adr} + ORA {adr}
+        ASL();//AFTER: fetch_buf == shifted_val
+        //flag set according to ORA();
+        A = A | fetch_buf;
+        return 0;
+    }
 };
