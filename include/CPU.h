@@ -100,7 +100,7 @@ namespace nes {
         
         Instr_Phase phase = Instr_Phase::instr_fetch;
 
-        bool irq_pending = false;//internal signal for irq;
+        bool irq_pending = false;//internal signal for irq, which also indicates irq line is low at least starting one preceding cycle;
         bool irq_need = false;
 
         bool nmi_pending = false;//internal signal for nmi;

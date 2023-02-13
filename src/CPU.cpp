@@ -211,10 +211,10 @@ namespace nes {
                 interrupt_sequence_start();
             }
             else {
-                fetch(PC++, cur_opcode);
+                fetch(PC++, cur_opcode); //the 1st cycle of any instr;
                 cycles = base_cycle_mtx[cur_opcode];
                 phase = Instr_Phase::execute;
-                //According to Blarg, FLAG::B do not physically exist in Status Flags register;
+                //According to Blargg, FLAG::B do not physically exist in Status Flags register;
                 //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
             }
             break;
@@ -302,9 +302,7 @@ namespace nes {
         //update irq internal signal cycle;
         irq_pending = irq_need;
         //level-detect;
-        if (!P.I && mainBus->irq_detected) {
-            irq_need = true;
-        }
+        irq_need = (!P.I && mainBus->irq_detected) ? true : false;
     }
 
     void CPU::interrupt_sequence_start() {
@@ -312,18 +310,19 @@ namespace nes {
         // interrupt sequence itself do not polling other interrupt;
         cycles = 7;
         phase = Instr_Phase::interrupt;
-        //push PC;
+        //cycle 1 : fetch instr and discard it, then force $00 into cur_opcode;
+        //cycle 2 : dummy_read();
+        //cycle 3 : push PC high;
         push((PC >> 8) & (Word)0x00ff);//push high byte first;
+        //cycle 4 : push PC low;
         push(PC & (Word)0x00ff);
-        //dummy_read();
-        //dummy_read();
         
         /* ------- polling interrupt after the 4th cycle of interrupt sequence --------- */
         
-        //push STATUS_FLAGS;
-        P.U = 1;
-        P.B = 0;       //irq and nmi push with B bit set to zero;
-        push(P.val);
+        //cycle 5 : push STATUS_FLAGS;
+        //irq and nmi push with B bit set to zero;
+        push((P.val | FLAG::U) & ~FLAG::B);
+
         //NOTE: FLAG::I should be set after the 4th cycle;
     }
 
@@ -389,12 +388,8 @@ namespace nes {
             push((PC >> 8) & (Word)0x00ff);//push high byte first;
             push(PC & (Word)0x00ff);
 
-            //set STATUS_FLAGS;
-            P.B = 0;//irq that is not caused by BRK;
-            P.U = 1;//the only point that needs to care FLAG::U, ie, before pushing stack;
-
             //push STATUS_FLAGS;
-            push(P.val);
+            push((P.val | FLAG::U) & ~FLAG::B);
             
             //set FLAG::I after pushing stack;
             P.I = 1;//shut down interrupt;
@@ -414,13 +409,8 @@ namespace nes {
         push((PC >> 8) & (Word)0x00ff);//push high byte first;
         push(PC & (Word)0x00ff);
 
-        //set STATUS_FLAGS;
-        //FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed.
-        P.B = 0;
-        P.U = 1;//before pushing stack, touch the FLAG::U bit;
-
         //push STATUS_FLAGS;
-        push(P.val);
+        push((P.val | FLAG::U) & ~FLAG::B);
 
         P.I = 1;//shut down irq;
 
@@ -803,6 +793,7 @@ namespace nes {
 
     Byte CPU::BRK(){
         //IMP
+        //cycle 2 : dummy_read();
         //cycle 3 : push high byte of PC first;
         ++PC; //a 6502 quirk: BRK() pushes instr addr + 2;
         push((PC >> 8) & 0x00ff);
@@ -812,9 +803,8 @@ namespace nes {
         /* --------------------- actual polling point --------------------- */
 
         //cycle 5: push status flags;
-        P.B = 1;//BRK should pushes status byte with bits 4 and 5 set;
-        P.U = 1;
-        push(P.val); //while FLAG::B is a transient state;
+        //BRK should pushes status byte with bits 4 and 5 set; while FLAG::B is a transient state;
+        push((P.val | FLAG::U | FLAG::B));
 
         //NOTE: FLAG::I should be set after the 4th cycle,
         //or it may inhibit the upcoming IRQs or NMIs;
@@ -1034,8 +1024,6 @@ namespace nes {
         //IMP
         //"FLAG::B represents a signal in the CPU controlling whether or not it was processing an interrupt when the flags were pushed."
         push((P.val | FLAG::B | FLAG::U));
-        P.B = 0;//explicitly clear FLAG::B for sure;
-        //P.U = 0;
         return 0;
     }
     Byte CPU::PLA(){
@@ -1047,11 +1035,11 @@ namespace nes {
     }
     Byte CPU::PLP(){
         //IMP
-        pull(P.val);
-        P.U = 1;
-        //"The CPU pushes a value with B clear during an interrupt, 
-        //  pushes a value with B set in response to PHP or BRK, 
+        //"The CPU pushes a value with B clear during an interrupt, pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
+        pull(P.val);
+        P.U = 0;//discard U and B;
+        P.B = 0;
         return 0;
     }
     Byte CPU::ROL(){
@@ -1106,12 +1094,11 @@ namespace nes {
     Byte CPU::RTI(){
         //IMP; 6 cycles;
         //pull status flags;
-        pull(P.val);
-        //"The CPU pushes a value with B clear during an interrupt, 
-        //  pushes a value with B set in response to PHP or BRK, 
+        //"The CPU pushes a value with B clear during an interrupt, pushes a value with B set in response to PHP or BRK, 
         //  and disregards bits 5 and 4 when reading flags from the stack in the PLP or RTI instruction."
-        P.B = 0;
-        //P.U = 0;
+        pull(P.val);
+        P.B = 0;//dicard B and U;
+        P.U = 0;
 
         //pull PC;
         pull(temp_byte);//pull low byte first;
