@@ -6,6 +6,8 @@
 
 #include "MainBus.h"
 
+#define S_MODE
+
 namespace nes {
 
     class CPU {
@@ -18,7 +20,7 @@ namespace nes {
         void connect(MainBus *_bus);
         void exe_instr();
         void clock();
-        void reset();
+        void reset(bool soft);
         void irq();
         void nmi();
 
@@ -45,6 +47,12 @@ namespace nes {
         Byte ZPY(); Byte REL(); Byte ABS(); Byte ABX();
         Byte ABY(); Byte IND(); Byte IZX(); Byte IZY();
         //accumulator addressing could be included in IMP();
+
+        //help to calculate extra cycle independently;
+        Byte ABX_L();//absolute x indexed mode for load instructions only;
+        Byte ABY_L();//absolute y indexed mode for load instructions only;
+        Byte IZY_L();//indirect indexed mode for load instructions only;
+        Byte IMP_B();//only used for BRK();
 
         //Official opcodes:
         Byte ADC(); Byte AND(); Byte ASL(); Byte BCC(); Byte BCS(); 
@@ -82,6 +90,7 @@ namespace nes {
         void push(Byte val); //helper function for stack operation;
         void pull(Byte &val);
         void branch(bool test); //helper function for branch instrs;
+        bool check_branch_cross();
 
     public://temporarily set to public for dubugging;
         Byte A = 0;    //accumulator;
@@ -122,28 +131,33 @@ namespace nes {
         MainBus* mainBus = nullptr;
 
         static constexpr ADDR_MODE addr_mode_mtx[kMAX_INSTR_MTX_SIZE] = {
-            //  0           1           2          3        4           5           6         7         8           9       A           B           C           D           E       F
-            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
-            & CPU::ABS,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
-            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
-            & CPU::IMP,& CPU::IZX,& CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::IND,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
-            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
-            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABY,& CPU::ABY,
-            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
-            & CPU::IMM,& CPU::IZX,& CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,& CPU::IMP,& CPU::IMM,& CPU::ABS,& CPU::ABS,& CPU::ABS,& CPU::ABS,
-            & CPU::REL,& CPU::IZY,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY,& CPU::IMP,& CPU::ABY,& CPU::ABX,& CPU::ABX,& CPU::ABX,& CPU::ABX,
+#ifdef S_MODE
+            & CPU::IMP_B,
+#else
+            & CPU::IMP,
+#endif
+            //  0           1           2          3        4           5           6         7         8           9           A           B           C           D           E           F
+                       & CPU::IZX,  & CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // 0
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // 1
+            & CPU::ABS,& CPU::IZX,  & CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // 2
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // 3
+            & CPU::IMP,& CPU::IZX,  & CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // 4
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // 5
+            & CPU::IMP,& CPU::IZX,  & CPU::IMP,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::IND,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // 6
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // 7
+            & CPU::IMM,& CPU::IZX,  & CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // 8
+            & CPU::REL,& CPU::IZY,  & CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY,  & CPU::IMP,& CPU::ABY,& CPU::ABX,  & CPU::ABX,  & CPU::ABY,  & CPU::ABY, // 9
+            & CPU::IMM,& CPU::IZX,  & CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // A
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPY,& CPU::ZPY,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABY_L,& CPU::ABY, // B
+            & CPU::IMM,& CPU::IZX,  & CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // C
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // D
+            & CPU::IMM,& CPU::IZX,  & CPU::IMM,& CPU::IZX,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::ZP0,& CPU::IMP,& CPU::IMM,  & CPU::IMP,& CPU::IMM,& CPU::ABS,  & CPU::ABS,  & CPU::ABS,  & CPU::ABS, // E
+            & CPU::REL,& CPU::IZY_L,& CPU::IMP,& CPU::IZY,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::ZPX,& CPU::IMP,& CPU::ABY_L,& CPU::IMP,& CPU::ABY,& CPU::ABX_L,& CPU::ABX_L,& CPU::ABX,  & CPU::ABX, // F
         };
         static constexpr OPERATION operation_mtx[kMAX_INSTR_MTX_SIZE] = {
             //  0           1           2          3        4           5           6         7         8           9        A           B           C           D           E       F
-            & CPU::BRK,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::PHP,& CPU::ORA,& CPU::ASL_A, & CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
-            & CPU::BPL,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::CLC,& CPU::ORA,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
+            & CPU::BRK,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::PHP,& CPU::ORA,& CPU::ASL_A, & CPU::XXX,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
+            & CPU::BPL,& CPU::ORA,& CPU::XXX,& CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,& CPU::CLC,& CPU::ORA,& CPU::XXX,   & CPU::SLO,& CPU::XXX,& CPU::ORA,& CPU::ASL,& CPU::SLO,
             & CPU::JSR,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::PLP,& CPU::AND,& CPU::ROL_A, & CPU::XXX,& CPU::BIT,& CPU::AND,& CPU::ROL,& CPU::XXX,
             & CPU::BMI,& CPU::AND,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,& CPU::SEC,& CPU::AND,& CPU::XXX,   & CPU::XXX,& CPU::XXX,& CPU::AND,& CPU::ROL,& CPU::XXX,
             & CPU::RTI,& CPU::EOR,& CPU::XXX,& CPU::XXX,& CPU::XXX,& CPU::EOR,& CPU::LSR,& CPU::XXX,& CPU::PHA,& CPU::EOR,& CPU::LSR_A, & CPU::XXX,& CPU::JMP,& CPU::EOR,& CPU::LSR,& CPU::XXX,
@@ -161,22 +175,22 @@ namespace nes {
         };
         static constexpr Byte base_cycle_mtx[kMAX_INSTR_MTX_SIZE] = {
           //0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
-            7,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	4,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
-            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	4,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
-            6,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	3,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
-            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	5,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
-            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
-            2,	6,	0,	6,	4,	4,	4,	4,	2,	5,	2,	5,	5,	5,	5,	5,
-            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4,
-            2,	5,	0,	5,	4,	4,	4,	4,	2,	4,	2,	4,	4,	4,	4,	4,
-            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
-            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6,
-            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7,
+            7,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	4,	4,	6,	6, // 0
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // 1
+            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	4,	4,	6,	6, // 2
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // 3
+            6,	6,	0,	8,	3,	3,	5,	5,	3,	2,	2,	2,	3,	4,	6,	6, // 4
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // 5
+            6,	6,	0,	8,	3,	3,	5,	5,	4,	2,	2,	2,	5,	4,	6,	6, // 6
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // 7
+            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4, // 8
+            2,	6,	0,	6,	4,	4,	4,	4,	2,	5,	2,	5,	5,	5,	5,	5, // 9
+            2,	6,	2,	6,	3,	3,	3,	3,	2,	2,	2,	2,	4,	4,	4,	4, // A
+            2,	5,	0,	5,	4,	4,	4,	4,	2,	4,	2,	4,	4,	4,	4,	4, // B
+            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6, // C
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // D
+            2,	6,	2,	8,	3,	3,	5,	5,	2,	2,	2,	2,	4,	4,	6,	6, // E
+            2,	5,	0,	8,	4,	4,	6,	6,	2,	4,	2,	7,	4,	4,	7,	7, // F
         };
         static constexpr char instr_name_mtx[kMAX_INSTR_MTX_SIZE][4] = {
             //0     1       2       3       4       5       6       7       8       9       A       B       C       D       E       F

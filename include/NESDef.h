@@ -62,6 +62,7 @@ namespace nes {
 		execute,
 		extra,
 		interrupt,
+		reset,
 	};
 
 	enum IRQ_SRC : Byte {

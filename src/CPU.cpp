@@ -193,7 +193,53 @@ namespace nes {
     }
 
     void CPU::clock(){
-#ifndef S_MODE
+#ifdef S_MODE
+        switch (phase) {
+        case Instr_Phase::instr_fetch:
+            if (irq_pending || nmi_pending) {
+                interrupt_sequence_start();
+            }
+            else {
+                fetch(PC++, cur_opcode); //the 1st cycle of any instr;
+                cycles = base_cycle_mtx[cur_opcode];
+                //temporary:
+                if (cycles == 0) cycles = 2;
+                phase = Instr_Phase::execute;
+                (this->*addr_mode_mtx[cur_opcode])();//here may modify phase;
+            }
+            break;
+        case Instr_Phase::execute:
+            if (cycles == 1) {
+                (this->*operation_mtx[cur_opcode])();
+                //extra cycle is directly added to cycles;
+                phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
+            }
+            break;
+        case Instr_Phase::extra: //only taken branches will enter extra phase;
+            if (cycles == 1) {
+                if (irq_need && !irq_pending && !check_branch_cross()) {
+                    irq_need = false;
+                }
+                phase = Instr_Phase::instr_fetch;
+            }
+            break;
+        case Instr_Phase::interrupt:
+            if (cycles == 3) {
+                interrupt_sequence_end();
+            }
+            else if (cycles == 1) {
+                interrupt_sequence_clear();
+            }
+            break;
+        case Instr_Phase::reset:
+            // idle for 8 cycles; later may use default to catch;
+            break;
+        default:
+            std::cout << "CPU::clock::switch error" << std::endl;
+            break;
+        }
+        detect_interrupt();
+#else
         if (cycles == 0) {
             fetch(PC++, cur_opcode);
             P.U = 1;//always set unused bit 1;
@@ -204,45 +250,6 @@ namespace nes {
             cycles += temp_byte;
             P.U = 1;
         }
-#else
-        switch (phase) {
-        case Instr_Phase::instr_fetch:
-            if (irq_pending || nmi_pending) {
-                interrupt_sequence_start();
-            }
-            else {
-                fetch(PC++, cur_opcode); //the 1st cycle of any instr;
-                cycles = base_cycle_mtx[cur_opcode];
-                phase = Instr_Phase::execute;
-                //According to Blargg, FLAG::B do not physically exist in Status Flags register;
-                //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
-            }
-            break;
-        case Instr_Phase::execute:
-            if (cycles == 1) {
-                temp_byte = (this->*addr_mode_mtx[cur_opcode])();
-                temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
-                //additional cycles;
-                cycles += temp_byte;
-                phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
-            }
-            break;
-        case Instr_Phase::extra:
-            if (cycles == 1) phase = Instr_Phase::instr_fetch;
-            break;
-        case Instr_Phase::interrupt:
-            if (cycles == 3) {
-                interrupt_sequence_end();
-            }
-            else if (cycles == 1) {
-                interrupt_sequence_clear();
-            }
-            break;
-        default:
-            std::cout << "CPU::clock::switch error" << std::endl;
-            break;
-        }
-        detect_interrupt();
 #endif
         cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
         return;
@@ -299,6 +306,7 @@ namespace nes {
             nmi_need = true;
         }
         prev_nmi_input = mainBus->nmi_detected;
+        
         //update irq internal signal cycle;
         irq_pending = irq_need;
         //level-detect;
@@ -352,10 +360,18 @@ namespace nes {
         phase = Instr_Phase::instr_fetch;
     }
 
-    void CPU::reset(){
-        A = X = Y = 0;
-        S = 0xFD;//low byte of stack pointer;
-        P.val = (0 | FLAG::I);
+    void CPU::reset(bool soft){
+        if (soft) {
+            P.I = 1;
+            S -= 3;
+        }
+        else {
+            A = X = Y = 0;
+            S = 0xFD;//low byte of stack pointer;
+            P.val = (0 | FLAG::I);
+
+            irq_need = false;// <-- do not clear while soft reset; why ?
+        }
 
         //fetch reset handler address;
         fetch(kRESET_VECTOR, fetch_buf);
@@ -373,7 +389,6 @@ namespace nes {
         temp_byte = 0;
 
         irq_pending = false;
-        irq_need = false;
         nmi_pending = false;
         nmi_need = false;
         prev_nmi_input = false;
@@ -544,6 +559,26 @@ namespace nes {
         return 0;
     }
 
+    Byte CPU::IMP_B() {
+        //only used for BRK() in S_MODE;
+        ++PC; //a 6502 quirk: BRK() pushes instr addr + 2;
+        push((PC >> 8) & 0x00ff);
+        //cycle 4:
+        push(PC & (Word)0xff);
+
+        /* --------------------- actual polling point --------------------- */
+
+        //cycle 5: push status flags;
+        //BRK should pushes status byte with bits 4 and 5 set; while FLAG::B is a transient state;
+        push((P.val | FLAG::U | FLAG::B));
+
+        //NOTE: FLAG::I should be set after the 4th cycle,
+        //or it may inhibit the upcoming IRQs;
+        phase = Instr_Phase::interrupt;
+
+        return 0;
+    }
+
     Byte CPU::IMM(){
         addr_abs = PC++;
         return 0;
@@ -586,49 +621,69 @@ namespace nes {
     }
     
     Byte CPU::ABX(){
-        ////cycle 2: read low byte / add reg X;
-        //fetch(PC++, fetch_buf);  //fetch low byte;
-        //addr_abs = (Word)fetch_buf & (Word)0x00ff;
-        //addr_abs += X;
-        //
-        //if ((addr_abs & (Word)0xff00)) temp_byte = 1;//if page crossed;
-        //else temp_byte = 0;
-        //
-        ////cycle 3: read high byte / add low result;
-        //fetch(PC++, fetch_buf);  //fetch high byte;
-        //addr_abs += (Word)fetch_buf << 8;
-        //return temp_byte;
+        //fixed cycle;
         fetch(PC++, fetch_buf);
         addr_abs = fetch_buf;
         fetch(PC++, fetch_buf);
         addr_abs |= fetch_buf << 8;
         addr_abs += X;
+#ifdef S_MODE
+        return 0;
+#else
         if ((addr_abs & 0xff00) != (fetch_buf << 8))
             return 1;
         else return 0;
+#endif
+    }
+
+    Byte CPU::ABX_L() {
+        //only load instr vary in cycle;
+        fetch(PC++, fetch_buf);
+        addr_abs = fetch_buf;
+        fetch(PC++, fetch_buf);
+        addr_abs |= fetch_buf << 8;
+        addr_abs += X;
+#ifdef S_MODE
+        if ((addr_abs & 0xff00) != (fetch_buf << 8)) ++cycles;
+        return 0;
+#else
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        else return 0;
+#endif
     }
 
     Byte CPU::ABY(){
-        //cycle 2: read low byte / add reg Y;
-        //fetch(PC++, fetch_buf);  //fetch low byte;
-        //addr_abs = (Word)fetch_buf & (Word)0x00ff;
-        //addr_abs += Y;
-        //
-        //if ( (addr_abs & (Word)0xff00) ) temp_byte = 1;//if page crossed;
-        //else temp_byte = 0;
-        //
-        ////cycle 3: read high byte / add low result;
-        //fetch(PC++, fetch_buf);  //fetch high byte;
-        //addr_abs += (Word)fetch_buf << 8;
-        //return temp_byte;
+        //fixed cycle;
         fetch(PC++, fetch_buf);
         addr_abs = fetch_buf;
         fetch(PC++, fetch_buf);
         addr_abs |= fetch_buf << 8;
         addr_abs += Y;
+#ifdef S_MODE
+        return 0;
+#else
         if ((addr_abs & 0xff00) != (fetch_buf << 8))
             return 1;
         else return 0;
+#endif
+    }
+
+    Byte CPU::ABY_L() {
+        //only load instr vary in cycle;
+        fetch(PC++, fetch_buf);
+        addr_abs = fetch_buf;
+        fetch(PC++, fetch_buf);
+        addr_abs |= fetch_buf << 8;
+        addr_abs += Y;
+#ifdef S_MODE
+        if ((addr_abs & 0xff00) != (fetch_buf << 8)) ++cycles;
+        return 0;
+#else
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        else return 0;
+#endif
     }
     
     Byte CPU::IND(){
@@ -674,22 +729,32 @@ namespace nes {
     }
     
     Byte CPU::IZY(){
+        //fixed cycle;
         //in instr contains the zero page location of the least signif byte of 16 bit addr;
         //FORMULA: val = PEEK(PEEK(arg) + PEEK((arg + 1) % 256) * 256 + Y)
-
         fetch(PC++, addr_zp0);
         fetch(addr_zp0, fetch_buf); //fetch low byte;
         addr_abs = fetch_buf;
-        //dummy read at cycle 3, depends on:
-        //  for LOAD  instr: if page crossed
-        //  for STORE instr: always
+        //dummy read at cycle 3, for STORE instr: always;
         ++addr_zp0;
         fetch(addr_zp0, fetch_buf);
         addr_abs |= fetch_buf << 8;
         addr_abs += Y;//wrap around if crossed;
-        if ((addr_abs & 0xff00) != (fetch_buf << 8))
-            return 1;
-        else return 0;
+        return 0;
+    }
+
+    Byte CPU::IZY_L() {
+        //dynamic cycle; only LOAD instr;
+        fetch(PC++, addr_zp0);
+        fetch(addr_zp0, fetch_buf); //fetch low byte;
+        addr_abs = fetch_buf;
+        //dummy read at cycle 3, for LOAD  instr: if page crossed
+        ++addr_zp0;
+        fetch(addr_zp0, fetch_buf);
+        addr_abs |= fetch_buf << 8;
+        addr_abs += Y;//wrap around if crossed;
+        if ((addr_abs & 0xff00) != (fetch_buf << 8)) ++cycles;
+        return 0;
     }
 
     //==================================================================
@@ -730,18 +795,20 @@ namespace nes {
         return 0;
     }
 
+    inline bool CPU::check_branch_cross() {
+        return (temp_word & 0xff00) != (PC & 0xff00);
+    }
+
     inline void CPU::branch(bool test) {
         if (test) {
             ++cycles;      //if branch suceeds;
-            temp_word = PC + addr_rel;
-            if ((temp_word & (Word)0xff00) != (PC & (Word)0xff00))
-                ++cycles;  //if to a new page;
-            else {//so that this is a taken-branch-not-crossing;
-                if (irq_need && !irq_pending)
-                    irq_need = false;
-                //TODO : NMI would also be delayed;
-            }
-            PC = temp_word;
+            //temp_word = PC + addr_rel;
+            //if ((temp_word & (Word)0xff00) != (PC & (Word)0xff00))
+            //    ++cycles;  //if to a new page;
+            //PC = temp_word;
+            //=========================================================
+            PC += addr_rel;
+            if (check_branch_cross()) ++cycles;
         }
     }
 
@@ -793,6 +860,7 @@ namespace nes {
 
     Byte CPU::BRK(){
         //IMP
+#ifndef S_MODE
         //cycle 2 : dummy_read();
         //cycle 3 : push high byte of PC first;
         ++PC; //a 6502 quirk: BRK() pushes instr addr + 2;
@@ -808,12 +876,9 @@ namespace nes {
 
         //NOTE: FLAG::I should be set after the 4th cycle,
         //or it may inhibit the upcoming IRQs or NMIs;
-        
-#ifndef S_MODE
         interrupt_sequence_end();
-#else
-        //BRK() could be hijacked by IRQ or NMI;
-        phase = Instr_Phase::interrupt;
+
+        //BRK() could be hijacked by IRQ or NMI;        
 #endif
         return 0;
     }
@@ -1230,6 +1295,8 @@ namespace nes {
         ASL();//AFTER: fetch_buf == shifted_val
         //flag set according to ORA();
         A = A | fetch_buf;
+        set_flag(FLAG::Z, A == 0);
+        set_flag(FLAG::N, signof(A));
         return 0;
     }
 };

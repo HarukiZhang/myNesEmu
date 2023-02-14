@@ -158,7 +158,6 @@ namespace nes {
         sys_clock = 0;
 		cpu_halt = false;
         ram.reset();
-        cpu->reset();
         ppu->reset();
     }
 }; // end nes;

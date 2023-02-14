@@ -69,6 +69,7 @@ inline bool initiate(const char* file_path){
 	//map_asm = cpu.disassemble(0x0000, 0xFFFF);
 
 	mbus.reset();
+	cpu.reset(false);//hard reset when power on;
 	std::clog << "Initiation : complete" << std::endl;
 	phase = PHASE::testStart;
 	return true;
@@ -93,6 +94,7 @@ inline bool main_step() {
 	// Code 1 is reported as "Failed", and the rest as "Error< code > ".
 
 	bool ret = false;
+	static uint16_t _pos = 4;
 	//Test related:
 	//if (cart.get_prg_ram(0) == 0x81) cpu.reset();
 
@@ -108,10 +110,15 @@ inline bool main_step() {
 	case PHASE::waitToLoad:
 		if (cart.get_prg_ram(1) == 0xDE && cart.get_prg_ram(2) == 0xB0 && cart.get_prg_ram(3) == 0x61) {
 			std::clog << "Save-RAM data : valid" << std::endl;
+			std::cout << "Save-RAM data : valid" << std::endl;
 			phase = PHASE::testRunning;
 		}
 		break;
 	case PHASE::testRunning:
+		while (cart.get_prg_ram(_pos)) {
+			std::cout << (char)cart.get_prg_ram(_pos);
+			++_pos;
+		}
 		result_code = cart.get_prg_ram(0);
 		if (result_code != 0x80) {
 			std::clog << "Test is done, result code : "<< result_code << std::endl;
@@ -212,16 +219,16 @@ int main() {
 	std::clog << "============================================" << std::endl;
 	print_time();
 	std::clog << "Test: S_MODE instr_test-v5 " file_name << std::endl;
-	
+
 	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\instr_test-v5\\rom_singles\\" file_name ".nes"))
 		return 0;
 
 	//bool bTraceStop = false;
-	t0 = SCLK::now();
+	//t0 = SCLK::now();
 	while (true) {
 		if (main_step()) break;
-		t1 = SCLK::now();
-
+		//t1 = SCLK::now();
+		
 		//if (phase == PHASE::testRunning)
 		//	bTraceStop = log_trace();
 		//if (bTraceStop) {
@@ -229,7 +236,7 @@ int main() {
 		//	break;
 		//}
 
-		print_ips();
+		//print_ips();
 
 		//if (global_counter >= 0xfffff) {
 		//	std::clog << "Test stopped due to number of instruction limit ($"
