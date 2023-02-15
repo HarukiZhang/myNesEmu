@@ -25,8 +25,15 @@ namespace nes {
     }
 
     inline void MainBus::check_nmi() {
+#ifdef S_MODE
         if (ppu->nmi_out) nmi_detected = true;
         else nmi_detected = false;
+#else
+        if (ppu->nmi_out) {
+            ppu->nmi_out = false;
+            cpu->nmi();
+        }
+#endif
     }
     
     bool MainBus::read(Word addr, Byte &data){
@@ -88,14 +95,14 @@ namespace nes {
             {
                 //if (addr < 0x4020){
                 //    io_regs[addr & 0xff] = data;
-
+                //
                 //    //writing to $4014 will trigger DMA;
                 //    //if (addr == 0x4014){
                 //    //    //
                 //    //    if (cpu_halt == false) extra_dma_cycles = 0;
                 //    //    cpu_halt = true;
                 //    //}
-
+                //
                 //    return true;
                 //}
                 //else {

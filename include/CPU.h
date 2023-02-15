@@ -6,7 +6,7 @@
 
 #include "MainBus.h"
 
-#define S_MODE
+//#define S_MODE
 
 namespace nes {
 
@@ -100,6 +100,7 @@ namespace nes {
         STATUS_FLAGS P; //status flags;
     private:
         Counter cycles = 0;
+        Counter instr_counter = 0;
 
         Byte fetch_buf = 0;
         Byte addr_zp0 = 0;

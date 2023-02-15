@@ -244,13 +244,13 @@ namespace nes {
 	};
 
 	struct PPU_CTRL {
-		Byte nt_select : 2;//nametable select;
+		Byte nt_select : 2;//nametable select;              bit 0
 		Byte incr_mode : 1; //increment mode;
 		Byte spr_select : 1; //sprite tile select;
 		Byte bkgr_select : 1; //background tile select;
 		Byte sprite_h : 1; //sprite height;
 		Byte slave_mode : 1; //PPU master/slave mode;
-		Byte nmi_enable : 1; //NMI enable/ V-Blank enable;
+		Byte nmi_enable : 1; //NMI enable/ V-Blank enable;  bit 7
 
 		PPU_CTRL() {
             *reinterpret_cast<Byte*>(this) = 0;
@@ -278,9 +278,9 @@ namespace nes {
 
 	struct PPU_STATUS {
 		Byte dummy0 : 5;
-		Byte sprite_overflow : 1; //Sprite Overflow Flag;
-		Byte sprite_hit : 1; //Sprite 0 Hit Flag;
-		Byte vblank_flag : 1; //V-Blank Flag;
+		Byte sprite_overflow : 1; //Sprite Overflow Flag;   bit 5
+		Byte sprite_hit : 1; //Sprite 0 Hit Flag;           bit 6
+		Byte vblank_flag : 1; //V-Blank Flag;               bit 7
 		
 		PPU_STATUS() {
 			*reinterpret_cast<Byte*>(this) = 0;
@@ -312,27 +312,27 @@ namespace nes {
 	union LOOPY_REG {
 		struct {
 			//coarse_x * coarse_y can address 1 KB NameTable;
-			Word coarse_x : 5;//0-31 x-axis within NameTable;(unit Byte)
-			Word coarse_y : 5;//0-31 y-axis within NameTable; 
-			Word nt_select : 2;//selcet from 2 1KB-NameTable;
-			Word fine_y : 3;//fine_x * fine_y address 8*8 pixels within a tile;
-			Word dummy0 : 1;//unused bit;
+			Word coarse_x	: 5;//0-31 x-axis within NameTable;(unit : Byte)
+			Word coarse_y	: 5;//0-31 y-axis within NameTable;
+			Word nt_select	: 2;//selcet from 2 1KB-NameTable;
+			Word fine_y		: 3;//fine_x * fine_y address 8*8 pixels within a tile;
+			Word dummy0		: 1;//unused bit;
 		};
 		struct {
-			Word low_byte;// 8;
-			Word high_byte : 6;
-			Word msb : 1;
-			Word dummy1 : 1;
+			Word low_byte   : 8;
+			Word high_byte	: 6;
+			Word msb		: 1;
+			Word dummy1		: 1;
 		};
 		struct {
-			Word nt_fetch_addr : 12;
-			Word dummy2 : 4;
+			Word nt_fetch_addr	: 12;
+			Word dummy2			: 4;
 		};
 		struct {
-			Word dummy3 : 2;
-			Word at_x : 3;
+			Word dummy3	: 2;
+			Word at_x	: 3;
 			Word dummy4 : 2;
-			Word at_y : 3;
+			Word at_y	: 3;
 			Word dummy5 : 6;
 		};
 		Word val;//used as a 14-bits VRAM addr;
@@ -345,11 +345,11 @@ namespace nes {
 			return kNAME_TBL_BASE | nt_fetch_addr;
 		}
 		Word get_at_addr(){
-			//base address of attribute table : 0x23C0;
+			//Base address of attribute table : 0x23C0;
 			//nt_select keep its position to select table;
-			//since the area of attribute tile is more coarse than pattern tile
-			//only the upper 3 bits of coarse_y are used to address;
-			//so as do the upeer 3 bits of coarse_x;
+			//Since the area of attribute tile is more coarse than pattern tile
+			//	only the upper 3 bits of coarse_y are used as part of address;
+			//So as do the upeer 3 bits of coarse_x;
 			return kATTR_TBL_BASE | (nt_select << 10) | (at_y << 3) | at_x;
 		}
 		void inc_x(bool render_enabled){
@@ -379,7 +379,7 @@ namespace nes {
 						coarse_y = 0;
 						nt_select ^= 0b10;
 					}
-					else if (coarse_y == 31) coarse_y = 0;
+					//else if (coarse_y == 31) coarse_y = 0;
 					else ++coarse_y;
 				}
 			}

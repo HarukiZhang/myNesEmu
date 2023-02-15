@@ -186,9 +186,18 @@ namespace nes {
 
                 print_info_v_iNES();
 
-                load_content(ifs);
+                //check mapper for how to load rom content;
+                switch (header.n_mapper()) {
+                case Mapper_Type::NROM:
+                    load_content(ifs);//set the prg_ram only when file indicates;
+                    ret = true;
+                    break;
+                default:
+                    std::clog << "Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
+                    ret = false;
+                    break;
+                }
 
-                ret = true;
             }
             break;
             default  :

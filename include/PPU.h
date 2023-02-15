@@ -25,16 +25,19 @@ namespace nes {
 
         olc::Sprite& get_screen();
         olc::Pixel& get_color(Byte palet, Byte pixel);
+        olc::Sprite& get_pattern_table(Byte tb_sel, Byte palette);
     
     private:
         void fetch_bkgr_tile();
         inline void load_bkgr_shifters();
         inline void update_shifters();
         
+        //internal helper functions:
         bool obj_compare(Byte n_scanl, Byte y_coord);
+        Word get_bkgr_patt_addr();
     
     public:
-        bool nmi_out = false;
+        bool nmi_out = false;//active low signal outputted from PPU, can be seen by bus and CPU;
         bool frame_complete = false;
     
     private:
@@ -53,7 +56,7 @@ namespace nes {
         olc::Pixel  pal_screen[0x40];//system palette
         olc::Sprite spr_screen{ 256, 240 };
         //olc::Sprite sprNameTable[2] = { {256, 240}, {256, 240} };
-        //olc::Sprite sprPatternTable[2] = { {128, 128}, {128, 128} };
+        olc::Sprite spr_pattern_table[2] = { {128, 128}, {128, 128} };
         
         Counter frame = 0;
         Word scanline = 0;
@@ -73,6 +76,8 @@ namespace nes {
         Word bkgr_shifter_patt_hi = 0;
         Byte bkgr_shifter_attr_lo = 0;
         Byte bkgr_shifter_attr_hi = 0;
+
+        Word bkgr_addr = 0;
 
         Byte bkgr_pixel = 0;//low 2bits of pixel color index, choosing color byte within a palette;
         Byte bkgr_palet = 0;//high 2btis, choosing from 4 palettes;

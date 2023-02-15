@@ -91,19 +91,20 @@ namespace nes {
             //post-render scanline : do nothing;
         }
         else if (scanline < 261) {//241, 242, ... , 260; total = 20;
-            if (scanline == 241 && cycle == 1) {
+            if (scanline == 241 && cycle == 1) {//start of vblank;
                 ppu_status.vblank_flag = 1;
-                if (ppu_ctrl.nmi_enable)
-                    nmi_out = true;//expect MainBus to find out;
+                if (ppu_ctrl.nmi_enable) nmi_out = true;//expect MainBus to find out;
             }
         }
-        else {//scanline == 261 or -1; pre-render scanline;
+        else {//scanline == 261 (ie, -1); pre-render scanline;
             //fetch operations:
             fetch_bkgr_tile();
 
             //flag and addr operations:
-            if (cycle == 1)
-                ppu_status = 0;//effectively clear vblank, sprite0hit, and overflow flags;
+            if (cycle == 1) {
+                ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+                nmi_out = false;
+            }
             else if (cycle == 256)
                 vram_addr.inc_y(ppu_mask.bkgr_enable || ppu_mask.spr_enable);
             else if (cycle == 257)
@@ -165,19 +166,14 @@ namespace nes {
             case 4://just do nothing;
                 break;
             case 5://fetch background tile low byte;
-                //one pattern tile = 16B; there are 256 tiles within one pattern table;
-                //there are two pattern table space, total 8KB space; need 13-bit address;
-                //the MSB is used for table select; using PPU_CTRL.background_select;
-                //early fetched bkgr_next_id described the order of tile;
-                //bkgr_next_id * 16 is the position within a pattern table;
-                //vram_addr.fine_y decides the order of byte within a tile;
-                temp_word = ((Word)ppu_ctrl.bkgr_select << 12) | (bkgr_next_id << 4) | (vram_addr.fine_y);
-                read(temp_word, bkgr_next_lsb);
+                bkgr_addr = get_bkgr_patt_addr();
+                read(bkgr_addr, bkgr_next_lsb);
                 break;
             case 6://just do nothing;
                 break;
             default://for 7th cycles : fetch background tile high byte;
-                read(temp_word + 8, bkgr_next_msb);// <--  attetion: maybe not work;
+                bkgr_addr |= 0x0008;//set plane bit to access high byte;
+                read(bkgr_addr, bkgr_next_msb);
                 break;
             }
 
@@ -188,6 +184,26 @@ namespace nes {
 
     }
 
+    inline Word PPU::get_bkgr_patt_addr() {
+        //one pattern tile = 16B; there are 256 tiles within one pattern table;
+        //there are two pattern table space, total 8KB space; need 13-bit address;
+        //the MSB is used for table select; using PPU_CTRL.background_select;
+        //early fetched bkgr_next_id described the order of tile;
+        //bkgr_next_id * 16 is the position within a pattern table;
+        //vram_addr.fine_y decides the order of byte within a tile;
+        //
+        // FEDC BA98 7654 3210
+        // -------------------
+        // 000H RRRR CCCC PTTT
+        //   || |||| |||| |+++-T : Fine Y offset, the row number within a tile
+        //   || |||| |||| +----P : Bit plane(0: "lower"; 1: "upper")
+        //   || |||| ++++------C : Tile column
+        //   || ++++-----------R : Tile row
+        //   |+----------------H : Half of pattern table(0: "left"; 1: "right")
+        //   +-----------------0 : Pattern table is at $0000 - $1FFF
+        return (((Word)ppu_ctrl.bkgr_select << 12) | ((Word)bkgr_next_id << 4) | vram_addr.fine_y) & 0xfff7;//ensure the plane bit is 0;
+    }
+
     void PPU::connect(HybridBus *_hb_bus){
         hb_bus = _hb_bus;
     }
@@ -196,11 +212,13 @@ namespace nes {
         switch (addr & 0x7){
             //only reg#2, 4, 7 are readable;
         case 2 : //$2002 : PPU status reg;
+            //only try to:
+            ppu_status.vblank_flag = 1;
             //only upper 3 bits of ppu_status is effective;
-            //lower 5 bits is the "noise" from ppu data buffer;
-            data = (ppu_status & 0xe0) | (ppu_data & 0x1f);
-            //clear vblank flag;
-            ppu_status.vblank_flag = 0;
+            //lower 5 bits is the "noise" from ppu data buffer; actually it's PPU open bus;
+            data = (ppu_status & 0xe0) | (ppu_data & 0x1f); //"Read PPUSTATUS: Return old status of NMI_occurred in bit 7,
+            ppu_status.vblank_flag = 0;                     //  then set NMI_occurred to false."
+            nmi_out = false;//immediately pull back nmi_out;
             //reset address write toggle;
             is_first_write = false;
             break;
@@ -210,9 +228,9 @@ namespace nes {
         case 7 : //$2007 : PPU memory data;
             //vram reading has one cycle delay;
             //however palette memory is small so no delay;
-            data = ppu_data;
-            this->read(vram_addr.val, ppu_data);
-            if (vram_addr.val >= kPALETTE_BASE)
+            data = ppu_data;                     //output buffer;
+            this->read(vram_addr.val, ppu_data); //update buffer;
+            if (vram_addr.val >= kPALETTE_BASE)  //palette do not delay;
                 data = ppu_data;
             //all read from ppu_data automatically increment vram_addr;
             vram_addr.val += (ppu_ctrl.incr_mode ? 32 : 1);
@@ -220,6 +238,7 @@ namespace nes {
         default:
             //reading a "write-only" reg returns the latch's
             //current value, as do the unused bits of PPUSTATUS;
+            data = NULL;//temporarily;
             return false;
             break;
         }
@@ -230,8 +249,14 @@ namespace nes {
         switch (addr & 0x7){
             //only for writable regs;
         case 0 : //$2000 : PPU control reg;
-            ppu_ctrl = data;
+            ppu_ctrl = data;//"Write to PPUCTRL: Set NMI_output to bit 7." --nesdev;
             temp_addr.nt_select = ppu_ctrl.nt_select;
+            //"If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1), 
+            // changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI."
+            if (!ppu_ctrl.nmi_enable)
+                nmi_out = false;
+            else if (ppu_status.vblank_flag)//implicitly AND (ppu_ctrl.nmi_enable == 1);
+                nmi_out = true;
             break;
         case 1 : //$2001 : PPU mask;
             ppu_mask = data;
@@ -321,6 +346,30 @@ namespace nes {
         return pal_screen[temp_byte & 0x3f];
     }
 
+    olc::Sprite& PPU::get_pattern_table(Byte tb_sel, Byte palette) {
+        for (Word tile_y = 0; tile_y < 16; ++tile_y) {
+            for (Word tile_x = 0; tile_x < 16; ++tile_x) {
+                for (Word row = 0; row < 8; ++row) {
+                    Byte msb_group = 0, lsb_group = 0;
+                    Word temp_addr = ( ((Word)tb_sel << 12) | (tile_y << 8) | (tile_x << 4) | row );
+                    read(temp_addr & 0xfff7, lsb_group);
+                    read(temp_addr | 0x0008, msb_group);
+                    for (Word col = 0; col < 8; ++col) {
+                        Byte pixel = ((msb_group & 0x1) << 1) | (lsb_group & 0x1);
+                        msb_group >>= 1; lsb_group >>= 1;
+                        spr_pattern_table[tb_sel].SetPixel(
+                            (tile_x << 3) + (7 - col),
+                            (tile_y << 3) + row,
+                            get_color(palette, pixel)
+                        );
+                    }
+                }
+            }
+        }
+        return spr_pattern_table[tb_sel];
+    }
+
+
     bool PPU::obj_compare(Byte n_scanl, Byte y_coord){
         temp_word = n_scanl;
         temp_word -= y_coord;
@@ -332,20 +381,35 @@ namespace nes {
     }
 
     void PPU::reset() {
+        //Writes to the following registers are ignored if earlier than ~29658 CPU clocks after reset : 
+        //  PPUCTRL, PPUMASK, PPUSCROLL, PPUADDR.
+        //  This also means that the PPUSCROLL / PPUADDR latch will not toggle.
+        //The other registers work immediately : 
+        //  PPUSTATUS, OAMADDR, OAMDATA($2004), PPUDATA, and OAMDMA($4014).
+        //
+        //There is an internal reset signal that clears 
+        //  PPUCTRL, PPUMASK, PPUSCROLL, PPUADDR, the PPUSCROLL / PPUADDR latch, and the PPUDATA read buffer. 
+        //
+        //This reset signal is set on reset and cleared at the end of VBlank, 
+        //  by the same signal that clears the VBlank, sprite 0, and overflow flags.
+        //Attempting to write to a register while it is being cleared has no effect, which explains why writes are "ignored" after reset.
+        //
         ppu_ctrl = 0;     //$2000
         ppu_mask = 0;     //$2001
-        ppu_status = 0;     //$2002
-        oam_addr = 0;         //$2003
-        oam_data = 0;         //$2004
-        ppu_scroll = 0;       //$2005
-        ppu_addr = 0;         //$2006
-        ppu_data = 0;         //$2007
+        ppu_status = 0xa0; //$2002 The VBL flag (bit 7) is random at power, and unchanged by reset. It is next set around 27384, then around 57165.
+        //oam_addr = 0;    //$2003 unchanged by reset; changed during rendering and cleared at the end of normal rendering;
+        oam_data = 0;      //$2004
+        ppu_scroll = 0;    //$2005
+        //ppu_addr = 0;    //$2006
+        ppu_data = 0;      //$2007
 
         frame = 0;
         scanline = 0;
         cycle = 0;
 
-        vram_addr.val = 0;
+        //"Clearing PPUSCROLL and PPUADDR corresponds to clearing the VRAM address latch(T) and the fine X scroll.
+        //Note that the VRAM address itself(V) is not cleared."
+        //vram_addr.val = 0;
         temp_addr.val = 0;
         fine_x = 0;
         is_first_write = false;
@@ -359,6 +423,8 @@ namespace nes {
         bkgr_shifter_patt_hi = 0;
         bkgr_shifter_attr_lo = 0;
         bkgr_shifter_attr_hi = 0;
+        
+        bkgr_addr = 0;
 
         bkgr_pixel = 0;
         bkgr_palet = 0;

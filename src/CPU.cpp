@@ -2,7 +2,7 @@
 
 #include "CPU.h"
 
-#define S_MODE
+//#define S_MODE
 
 namespace nes {
 
@@ -204,6 +204,8 @@ namespace nes {
                 cycles = base_cycle_mtx[cur_opcode];
                 //temporary:
                 if (cycles == 0) cycles = 2;
+                ++instr_counter;
+
                 phase = Instr_Phase::execute;
                 (this->*addr_mode_mtx[cur_opcode])();//here may modify phase;
             }
@@ -249,6 +251,7 @@ namespace nes {
             //additional cycles;
             cycles += temp_byte;
             P.U = 1;
+            ++instr_counter;
         }
 #endif
         cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
@@ -371,6 +374,7 @@ namespace nes {
             P.val = (0 | FLAG::I);
 
             irq_need = false;// <-- do not clear while soft reset; why ?
+            instr_counter = 0;
         }
 
         //fetch reset handler address;
@@ -468,7 +472,7 @@ namespace nes {
             sInstr += instr_name_mtx[opcode];
             sInstr += " ";
 
-            if (addr_mode_mtx[opcode] == &CPU::IMP)
+            if (addr_mode_mtx[opcode] == &CPU::IMP || addr_mode_mtx[opcode] == &CPU::IMP_B)
                 sInstr += " {IMP}";
             else if (addr_mode_mtx[opcode] == &CPU::IMM) {
                 fetch(addr++, value);
@@ -499,14 +503,14 @@ namespace nes {
                 temp |= (Word)value << 8;
                 sInstr += "$" + hex(temp, 4) + " {ABS}";
             }
-            else if (addr_mode_mtx[opcode] == &CPU::ABX) {
+            else if (addr_mode_mtx[opcode] == &CPU::ABX || addr_mode_mtx[opcode] == &CPU::ABX_L) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
                 temp |= (Word)value << 8;
                 sInstr += "$" + hex(temp, 4) + ",X {ABX}";
             }
-            else if (addr_mode_mtx[opcode] == &CPU::ABY) {
+            else if (addr_mode_mtx[opcode] == &CPU::ABY || addr_mode_mtx[opcode] == &CPU::ABY_L) {
                 fetch(addr++, value);
                 temp = (Word)value & (Word)0x00ff;
                 fetch(addr++, value);
@@ -524,7 +528,7 @@ namespace nes {
                 fetch(addr++, value);
                 sInstr += "($" + hex(value, 2) + ",X) {IZX}";
             }
-            else if (addr_mode_mtx[opcode] == &CPU::IZY) {
+            else if (addr_mode_mtx[opcode] == &CPU::IZY || addr_mode_mtx[opcode] == &CPU::IZY_L) {
                 fetch(addr++, value);
                 sInstr += "($" + hex(value, 2) + "),Y {IZY}";
             }
@@ -740,7 +744,13 @@ namespace nes {
         fetch(addr_zp0, fetch_buf);
         addr_abs |= fetch_buf << 8;
         addr_abs += Y;//wrap around if crossed;
+#ifdef S_MODE
         return 0;
+#else
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        return 0;
+#endif
     }
 
     Byte CPU::IZY_L() {
@@ -753,8 +763,14 @@ namespace nes {
         fetch(addr_zp0, fetch_buf);
         addr_abs |= fetch_buf << 8;
         addr_abs += Y;//wrap around if crossed;
+#ifdef S_MODE
         if ((addr_abs & 0xff00) != (fetch_buf << 8)) ++cycles;
         return 0;
+#else
+        if ((addr_abs & 0xff00) != (fetch_buf << 8))
+            return 1;
+        return 0;
+#endif
     }
 
     //==================================================================
@@ -802,13 +818,9 @@ namespace nes {
     inline void CPU::branch(bool test) {
         if (test) {
             ++cycles;      //if branch suceeds;
-            //temp_word = PC + addr_rel;
-            //if ((temp_word & (Word)0xff00) != (PC & (Word)0xff00))
-            //    ++cycles;  //if to a new page;
-            //PC = temp_word;
-            //=========================================================
             PC += addr_rel;
-            if (check_branch_cross()) ++cycles;
+            if (check_branch_cross())
+                ++cycles;
         }
     }
 

@@ -36,6 +36,12 @@ namespace nes {
         Byte get_ram(Word addr) {
             return ram[addr];
         }
+        void set_irq() {
+            irq_detected = true;
+        }
+        void set_nmi() {
+            nmi_detected = true;
+        }
     private:
         RAM ram;//ram for CPU;
         //IO_REG io_regs;
