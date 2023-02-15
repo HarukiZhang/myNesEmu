@@ -258,49 +258,6 @@ namespace nes {
         return;
     }
 
-    //void CPU::clock_s() {
-    //    switch (phase) {
-    //    case Instr_Phase::instr_fetch :
-    //        if (irq_pending || nmi_pending) {
-    //            interrupt_sequence_start();
-    //        }
-    //        else {
-    //            fetch(PC++, cur_opcode);
-    //            cycles = base_cycle_mtx[cur_opcode];
-    //            phase = Instr_Phase::execute;
-    //            //According to Blarg, FLAG::B do not physically exist in Status Flags register;
-    //            //So, it's not expected to set bit 4 in P, but only set bit 4 of the byte that is pushed into stack;
-    //        }
-    //        break;
-    //    case Instr_Phase::execute :
-    //        if (cycles == 1) {
-    //            temp_byte = (this->*addr_mode_mtx[cur_opcode])();
-    //            temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
-    //            //additional cycles;
-    //            cycles += temp_byte;
-    //            phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
-    //        }
-    //        break;
-    //    case Instr_Phase::extra :
-    //        if (cycles == 1) phase = Instr_Phase::instr_fetch;
-    //        break;
-    //    case Instr_Phase::interrupt :
-    //        if (cycles == 3) {
-    //            interrupt_sequence_end();
-    //        }
-    //        else if (cycles == 1) {
-    //            interrupt_sequence_clear();
-    //        }
-    //        break;
-    //    default :
-    //        std::cout << "CPU::clock::switch error" << std::endl;
-    //        break;
-    //    }
-    //    detect_interrupt();
-    //    --cycles;
-    //    return;
-    //}
-
     inline void CPU::detect_interrupt() {
         //update nmi internal signal cycle;
         nmi_pending = nmi_need;
@@ -446,7 +403,7 @@ namespace nes {
         return cycles == 0;
     }
 
-    void CPU::dma_cycles(Byte cc){
+    void CPU::dma_cycles(Word cc){
         cycles += cc;
     }
 

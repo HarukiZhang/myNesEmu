@@ -15,21 +15,21 @@ namespace nes {
         void connect(CPU *_cpu, PPU *_ppu, std::shared_ptr<Mapper> &_mapp);
         bool read(Word addr, Byte &data);
         bool write(Word addr, Byte data);
+        void reset();
 
         //TODO: APU related functions;
         //TODO: JoySticks IO functions;
         
         //TODO: DMA or direct access to OAM;
-        //void OAM_DMA();
+        void OAM_DMA();
         //TODO: DMC DMA fucntion;
         //void DMC_DMA();
-        void clock();
 
+        void clock();
         //check signal from each devices;
         //MainBus should only check signals and inform CPU that there is interrupt request,
         //  but not to "command" CPU to be interrupted;
-        inline void check_nmi();
-        void reset();
+        void check_nmi();
 
 
         //debug:
@@ -44,9 +44,10 @@ namespace nes {
         }
     private:
         RAM ram;//ram for CPU;
+        Byte oam_dma = 0; //$4014
         //IO_REG io_regs;
 
-        Counter sys_clock = 0;//count global ppu clock cycles;
+        Counter sys_clock = 0;//count CPU clock cycles;
 
         friend class CPU;
         bool irq_detected = false;
@@ -57,9 +58,7 @@ namespace nes {
         bool cpu_halt = false;//used by OAM_DMA;
         Byte extra_dma_cycles = 0;//used by OAM_DMA;
 
-        //cpu pointer is used for informing cpu:
-        //how many dma extra cycles counted,
-        //and interrupts;
+        //cpu pointer is used for informing cpu: how many dma extra cycles counted, and interrupts;
         CPU *cpu = nullptr;
         PPU *ppu = nullptr;
         std::shared_ptr<Mapper> mapper = nullptr;

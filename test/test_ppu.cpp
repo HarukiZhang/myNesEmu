@@ -41,8 +41,6 @@ private:
 			return false;
 		}
 		mbus.connect(&cpu, &ppu, mapp);
-		hbus.connect(mapp);
-		ppu.connect(&hbus);
 		std::clog << "Mapper usecount : " << mapp.use_count() << std::endl;
 		
 		map_asm = cpu.disassemble(0x8000, 0xFFFF);
@@ -184,7 +182,6 @@ private:
 	nes::CPU cpu;
 	nes::PPU ppu;
 	nes::MainBus mbus;
-	nes::HybridBus hbus;
 	nes::Cartridge cart;
 	std::shared_ptr<nes::Mapper> mapp;
 

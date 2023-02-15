@@ -1,8 +1,8 @@
 #include<iostream>
 
+#include "MainBus.h"
 #include "CPU.h"
 #include "PPU.h"
-#include "MainBus.h"
 
 namespace nes {
 
@@ -11,16 +11,18 @@ namespace nes {
     void MainBus::connect(CPU *_cpu, PPU *_ppu, std::shared_ptr<Mapper> &_mapp){
         cpu = _cpu;
         cpu->connect(this);
-        std::clog << "CPU connected to MainBus" << std::endl;
         ppu = _ppu;
         mapper = _mapp;
+        ppu->connect(mapper);
     }
 
     void MainBus::clock() {
         ppu->clock();
-        if (sys_clock % 3 == 0)
-            cpu->clock();
+        ppu->clock();
+        ppu->clock();
         check_nmi();
+        //if (sys_clock % 3 == 0)
+        cpu->clock();
         ++sys_clock;
     }
 
@@ -121,27 +123,27 @@ namespace nes {
         }
     }
 
-    //void MainBus::OAM_DMA(){
-    //    Word addr = io_regs.oam_dma << 8;// ($4014) * $100;
-    //    Byte oam_cycles = 0x201;//512 access cycles + one halt cycle;
-    //    std::memcpy(&ppu->oam[0], &ram[addr], 0x100);
-    //    
-    //    //TODO: condition of: the optional alignment cycle;
-    //    //OAM DMA on its own takes 513 or 514 cycles,
-    //    //that is: exclude cycles before halt success ?
-
-    //    cpu->dma_cycles(oam_cycles);
-
-    //    cpu_halt = false;//close;
-
-    //    //TODO: how to interact when encountered DMC DMA?
-    //    return;
-    //}
+    void MainBus::OAM_DMA(){
+        Word addr = oam_dma << 8;// ($4014) * $100;
+        Word oam_cycles = 513;//512 access cycles + one halt cycle; <-- is this compute correct?
+        std::memcpy(&ppu->oam[0], &ram[addr], 0x100);
+        
+        //TODO: condition of: the optional alignment cycle;
+        //OAM DMA on its own takes 513 or 514 cycles,
+        //that is: exclude cycles before halt success ?
+    
+        cpu->dma_cycles(oam_cycles);
+    
+        cpu_halt = false;//close;
+    
+        //TODO: how to interact when encountered DMC DMA?
+        return;
+    }
 
     //void MainBus::DMC_DMA(){
     //    //Transfer: DMC DMA copies a single byte to the DMC unit's sample buffer. 
     //    //Where is it?
-
+    //
     //    //TODO: how to trigger a DMC_DMA() ?
     //    //This occurs automatically after the DMC enable bit, bit 4, 
     //    //of the sound channel enable register ($4015) is set to 1, 
@@ -152,19 +154,22 @@ namespace nes {
     //    //DMC DMA is scheduled when all of DPCM playback is enabled, 
     //    //there are bytes left in the sample, and the sample buffer 
     //    //is empty (see Memory reader and Output unit). 
-
+    //
     //    //TODO: how many cycles it takes?
     //    //DMC DMA normally takes 3 or 4 cycles;
     //    //In the common cases, DMC DMA performs a halt cycle, 
     //    //a dummy cycle, an optional alignment cycle, and a get.
-
+    //
     //    cpu->dma_cycles(3);
     //}
     
     void MainBus::reset(){
         sys_clock = 0;
 		cpu_halt = false;
+        oam_dma = 0;
         ram.reset();
         ppu->reset();
+        //irq_detected = false;
+        //nmi_detected = false;
     }
 }; // end nes;

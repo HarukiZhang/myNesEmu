@@ -141,15 +141,15 @@ namespace nes {
             {
                 // check size of rom file comparing to the info;
                 // 12bits addr should address max to 64MB (as 16KB for each bank)
-                size_t info_rom_size = header.tailBytes[0] & 0xf; //tailBytes[0] = Byte 9;
-                info_rom_size <<= 8;
-                info_rom_size &= 0xf00;
-                info_rom_size |= header.num_prg_rom;
-                info_rom_size *= 0x4000;
-                struct stat statbuf;
-                stat(file_path, &statbuf);
-                if (info_rom_size >= statbuf.st_size)
-                    std::clog << "Notice: rom file size is smaller than inferred from header." << std::endl;
+                //size_t info_rom_size = header.tailBytes[0] & 0xf; //tailBytes[0] = Byte 9;
+                //info_rom_size <<= 8;
+                //info_rom_size &= 0xf00;
+                //info_rom_size |= header.num_prg_rom;
+                //info_rom_size *= 0x4000;
+                //struct stat statbuf;
+                //stat(file_path, &statbuf);
+                //if (info_rom_size >= statbuf.st_size)
+                //    std::clog << "Notice: rom file size is smaller than inferred from header." << std::endl;
 
                 std::clog << "The NES 2.0 file is correctly loaded." << std::endl;
                 /* Read info according to NES 2.0 standard */

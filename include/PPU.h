@@ -3,7 +3,7 @@
 
 #include "olcPixelGameEngine.h"
 
-#include "HybridBus.h"
+#include "Mapper.h"
 
 namespace nes {
 
@@ -15,18 +15,18 @@ namespace nes {
     public:
         PPU();
         ~PPU();
-        void connect(HybridBus *_hb_bus);
+        void connect(std::shared_ptr<Mapper> &mapp);
         bool read_regs(Word addr, Byte &data);
         bool write_regs(Word addr, Byte data);
-        inline bool read(Word addr, Byte &data);
-        inline bool write(Word addr, Byte data);
+        bool read(Word addr, Byte &data);//read ppu mapping space;
+        bool write(Word addr, Byte data);//write ppu mapping space;
         void clock();
         void reset();
 
         olc::Sprite& get_screen();
         olc::Pixel& get_color(Byte palet, Byte pixel);
         olc::Sprite& get_pattern_table(Byte tb_sel, Byte palette);
-    
+
     private:
         void fetch_bkgr_tile();
         inline void load_bkgr_shifters();
@@ -41,6 +41,7 @@ namespace nes {
         bool frame_complete = false;
     
     private:
+        //PPU I/O Registers:
         PPU_CTRL ppu_ctrl;     //$2000
         PPU_MASK ppu_mask;     //$2001
         PPU_STATUS ppu_status; //$2002
@@ -50,6 +51,8 @@ namespace nes {
         Byte ppu_addr = 0;     //$2006
         Byte ppu_data = 0;     //$2007
 
+        VRAM vram;
+        Palette palette;
         OAM oam;
         OAM_BUF oam_buf;
 
@@ -86,7 +89,7 @@ namespace nes {
         Word temp_word = 0;
         Byte temp_byte = 0;
       
-        HybridBus *hb_bus = nullptr;
+        std::shared_ptr<Mapper> mapper = nullptr;
     };
 
 };//end nes

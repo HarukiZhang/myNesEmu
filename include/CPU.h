@@ -4,9 +4,9 @@
 #include<string>
 #include<map>
 
-#include "MainBus.h"
+#define S_MODE
 
-//#define S_MODE
+#include "MainBus.h"
 
 namespace nes {
 
@@ -26,7 +26,7 @@ namespace nes {
 
         bool complete();
 
-        void dma_cycles(Byte cc);
+        void dma_cycles(Word cc);
 
         std::map<Word, std::string> disassemble(Word addr_start, Word addr_stop);
 
