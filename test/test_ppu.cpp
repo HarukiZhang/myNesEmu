@@ -27,7 +27,7 @@ public:
 	Demo() { sAppName = "myNesEmu_test_ppu"; }
 private:
 	bool OnUserCreate() override {
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\SuperMarioBros.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -66,7 +66,9 @@ private:
 			else
 			{
 				fResidualTime += (1.0f / 60.0f) - fElapsedTime;
-				do { mbus.clock(); } while (!ppu.frame_complete);
+				do { 
+					mbus.clock(); 
+				} while (!ppu.frame_complete);
 				ppu.frame_complete = false;
 			}
 		}
@@ -78,8 +80,7 @@ private:
 				do { mbus.clock(); } while (!cpu.complete());
 
 				// CPU clock runs slower than system clock, so it may be
-				// complete for additional system clock cycles. Drain
-				// those out
+				// complete for additional system clock cycles. Drain those out
 				do { mbus.clock(); } while (cpu.complete());
 			}
 
@@ -113,8 +114,17 @@ private:
 		}
 		DrawRect((kRIGHT_COL + pal_sel * (swatch_size * 5) - 1), 139, (4 * swatch_size), swatch_size);
 
+
+		olc::Sprite& temp_spr = ppu.get_pattern_table(1, pal_sel);
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
-		DrawSprite(kRIGHT_COL + 130, 5, &ppu.get_pattern_table(1, pal_sel), 1);
+		DrawSprite(kRIGHT_COL + 130, 5, &temp_spr, 1);
+
+		//for (uint8_t y = 0; y < 30; ++y) {
+		//	for (uint8_t x = 0; x < 32; ++x) {
+		//		uint8_t id = ppu.vram[y * 32 + x];
+		//		DrawPartialSprite(x * 16, y * 16, &temp_spr, (id & 0x0f) << 3, ((id >> 4) & 0x0f) << 3, 8, 8, 2);
+		//	}
+		//}
 
 		return true;
 
@@ -176,7 +186,6 @@ private:
 
 	float fResidualTime = 0.0f;
 	size_t global_counter = 0;
-	bool bTestStart = false;
 	uint8_t pal_sel = 0;
 
 	nes::CPU cpu;
@@ -189,25 +198,6 @@ private:
 
 
 };
-
-/*
-1>try1.obj : error LNK2019: 无法解析的外部符号
-"public: bool __thiscall nes::CPU::complete(void)"，
-函数 "private: virtual bool __thiscall Demo::OnUserUpdate(float)" 中引用了该符号
-
-1>HybridBus.obj : error LNK2019: 无法解析的外部符号
-"public: unsigned short __thiscall nes::Mapper::get_nt_mirror(unsigned short)" ，
-函数 "public: bool __thiscall nes::HybridBus::read(unsigned short,unsigned char &)" 中引用了该符号
-
-1>Mapper.obj : error LNK2019: 无法解析的外部符号
-"public: struct nes::_NESHeader const & __thiscall nes::Cartridge::get_header(void)"，
-函数 "public: static class std::shared_ptr<class nes::Mapper> __cdecl nes::Mapper::create_mapper(class nes::Cartridge &)"
-中引用了该符号
-
-1>Mapper_NROM.obj : error LNK2001: 无法解析的外部符号
-"public: struct nes::_NESHeader const & __thiscall nes::Cartridge::get_header(void)"
-
-*/
 
 TP t0, t1;
 SPAN span;

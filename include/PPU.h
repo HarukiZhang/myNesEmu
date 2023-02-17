@@ -29,12 +29,14 @@ namespace nes {
 
     private:
         void fetch_bkgr_tile();
+        void fetch_tile();
         inline void load_bkgr_shifters();
         inline void update_shifters();
         
         //internal helper functions:
         bool obj_compare(Byte n_scanl, Byte y_coord);
         Word get_bkgr_patt_addr();
+        bool check_render_enabled();
     
     public:
         bool nmi_out = false;//active low signal outputted from PPU, can be seen by bus and CPU;
@@ -64,12 +66,16 @@ namespace nes {
         Counter frame = 0;
         Word scanline = 0;
         Word cycle = 0;
+        bool sprite_fetch_enable = false;
+        bool sprite_eval_enable = false;
+        bool sec_oam_clear = false;
         
         LOOPY_REG vram_addr;//current vram address;
         LOOPY_REG temp_addr;//temp vram addr, or as the address of the top left onscreen tile;
         Byte fine_x = 0;//fine x scroll; low 3 bits address 8 pixels;
         bool is_first_write = false;//toggle: 1 = after 1st write; 0 = after 2nd write / init;
         
+        Word bkgr_addr = 0;
         Byte bkgr_next_id = 0;
         Byte bkgr_next_attr = 0;
         Byte bkgr_next_lsb = 0;
@@ -77,13 +83,12 @@ namespace nes {
 
         Word bkgr_shifter_patt_lo = 0;
         Word bkgr_shifter_patt_hi = 0;
-        Byte bkgr_shifter_attr_lo = 0;
-        Byte bkgr_shifter_attr_hi = 0;
+        Word bkgr_shifter_attr_lo = 0;
+        Word bkgr_shifter_attr_hi = 0;
 
-        Word bkgr_addr = 0;
-
+        Word extract_mask = 0;
         Byte bkgr_pixel = 0;//low 2bits of pixel color index, choosing color byte within a palette;
-        Byte bkgr_palet = 0;//high 2btis, choosing from 4 palettes;
+        Byte bkgr_attrb = 0;//high 2btis, choosing from 4 palettes;
 
         //tempoary variable for internal use;
         Word temp_word = 0;

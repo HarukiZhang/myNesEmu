@@ -314,7 +314,8 @@ namespace nes {
 			//coarse_x * coarse_y can address 1 KB NameTable;
 			Word coarse_x	: 5;//0-31 x-axis within NameTable;(unit : Byte)
 			Word coarse_y	: 5;//0-31 y-axis within NameTable;
-			Word nt_select	: 2;//selcet from 2 1KB-NameTable;
+			Word nt_sel_x	: 1;//selcet from 2 1KB-NameTable;
+			Word nt_sel_y   : 1;
 			Word fine_y		: 3;//fine_x * fine_y address 8*8 pixels within a tile;
 			Word dummy0		: 1;//unused bit;
 		};
@@ -350,48 +351,44 @@ namespace nes {
 			//Since the area of attribute tile is more coarse than pattern tile
 			//	only the upper 3 bits of coarse_y are used as part of address;
 			//So as do the upeer 3 bits of coarse_x;
-			return kATTR_TBL_BASE | (nt_select << 10) | (at_y << 3) | at_x;
+			return kATTR_TBL_BASE | (nt_sel_y << 11) | (nt_sel_x << 10) | (at_y << 3) | at_x;
 		}
-		void inc_x(bool render_enabled){
-			if (render_enabled){
-				//Note: incrementing x has to be separated from incrementing y;
-				//because when reaching the boundary of one name table,
-				//it is not necessarily that coarse_y should be incremented;
-				//rather, when camera scrolling crossed two nametable fields,
-				//address should jump to the adjacent nametable according to mirroring;
-				if (coarse_x == 31){
-					coarse_x = 0;
-					nt_select ^= 0x1;
+		void inc_hori(){
+			//Note: incrementing x has to be separated from incrementing y;
+			//because when reaching the boundary of one name table,
+			//it is not necessarily that coarse_y should be incremented;
+			//rather, when camera scrolling crossed two nametable fields,
+			//address should jump to the adjacent nametable according to mirroring;
+			if (coarse_x == 31){
+				coarse_x = 0;
+				nt_sel_x ^= 1;
+			}
+			else ++coarse_x;
+		}
+		void inc_vert(){
+			//y coordinate should only be incremented according to rendering routine;
+			//but not be influenced by increment of x coordinate;
+			if (fine_y < 7) ++fine_y;
+			else {
+				//fine_y == 7 indicates a tile is completely rendered;
+				//so it is time to pick up the next tile;
+				fine_y = 0;
+				if (coarse_y == 29){
+					coarse_y = 0;
+					nt_sel_y ^= 1;
 				}
-				else ++coarse_x;
+				else if (coarse_y == 31) coarse_y = 0;
+				else ++coarse_y;
 			}
 		}
-		void inc_y(bool render_enabled){
-			if (render_enabled){
-				//y coordinate should only be incremented according to rendering routine;
-				//but not be influenced by increment of x coordinate;
-				if (fine_y < 7) ++fine_y;
-				else {
-					//fine_y == 7 indicates a tile is completely rendered;
-					//so it is time to pick up the next tile;
-					fine_y = 0;
-					if (coarse_y == 29){
-						coarse_y = 0;
-						nt_select ^= 0b10;
-					}
-					//else if (coarse_y == 31) coarse_y = 0;
-					else ++coarse_y;
-				}
-			}
-		}
-		void transfer_x(LOOPY_REG &reg){
+		void reset_hori(LOOPY_REG &reg){
 			coarse_x = reg.coarse_x;
-			nt_select |= reg.nt_select & 0x1;
+			nt_sel_x = reg.nt_sel_x;
 		}
-		void transfer_y(LOOPY_REG &reg){
+		void reset_vert(LOOPY_REG &reg){
 			coarse_y = reg.coarse_y;
 			fine_y = reg.fine_y;
-			nt_select |= reg.nt_select & 0b10;
+			nt_sel_y = reg.nt_sel_y;
 		}
 	};
 
