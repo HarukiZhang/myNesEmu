@@ -47,14 +47,14 @@ namespace nes {
 
 	//CPU status flag;
 	enum FLAG {
-		C = 0b0000'0001,
-		Z = 0b0000'0010,
-		I = 0b0000'0100,
-		D = 0b0000'1000,
-		B = 0b0001'0000,
-		U = 0b0010'0000,
-		V = 0b0100'0000,
-		N = 0b1000'0000,
+		Carry    = 0b0000'0001,
+		Zero     = 0b0000'0010,
+		I_Flag   = 0b0000'0100,
+		D_Mode   = 0b0000'1000,
+		B_bit    = 0b0001'0000,
+		U_bit    = 0b0010'0000,
+		Overflow = 0b0100'0000,
+		Negative = 0b1000'0000,
 	};
 
 	enum class Instr_Phase {
@@ -95,6 +95,17 @@ namespace nes {
 		NES_2_0 = 0x8,
 	};
 
+	enum Button {
+		RIGHT  = 0x01,
+		LEFT   = 0x02,
+		DOWN   = 0x04,
+		UP     = 0x08,
+		START  = 0x10,
+		SELECT = 0x20,
+		B      = 0x40,
+		A      = 0x80,
+	};
+
 	//CPU status flag register;
 	union STATUS_FLAGS {
 		struct {
@@ -102,8 +113,8 @@ namespace nes {
 			Byte Z : 1;      //zero
 			Byte I : 1;      //interrupt disable
 			Byte D : 1;      //decimal mode
-			Byte B : 1;      //break command
-			Byte U : 1;      //unused
+			Byte B : 1;      //B bit used for check break;
+			Byte U : 1;      //unused bit;
 			Byte V : 1;      //overflow
 			Byte N : 1;      //negative;           bit7
 		};
@@ -199,7 +210,7 @@ namespace nes {
 
 	//object attribute entry, 4 Byte;
 	struct OBJ_ATTR {
-		Byte y_coord_1;
+		Byte y_coord;
 		Byte index;
 		//attribute Byte
 		Byte n_palette : 2;
@@ -211,7 +222,7 @@ namespace nes {
 		Byte x_coord;
 
 		Byte &operator[](Word _addr){
-			return (&y_coord_1)[_addr];
+			return (&y_coord)[_addr];
 		}
 	};
 

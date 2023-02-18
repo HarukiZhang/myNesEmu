@@ -56,14 +56,14 @@ namespace nes {
         case 0x4 :
         case 0x5 :
             {
-                //if (addr < 0x4020){
-                //    data = io_regs[addr & 0xff];
-                //    return true;
-                //}
-                //else {
-                //    //TODO: Expansion ROM
-                //    return false;
-                //}
+                if (addr == 0x4014) {
+                //TODO : DMA
+                }
+                else if (addr >= 0x4016 && addr <= 0x4017) {
+                    data = (controller_state[addr & 0x1] & 0x80) > 0;
+                    controller_state[addr & 0x1] <<= 1;
+                    return true;
+                }
                 data = NULL;
                 return false;
             }
@@ -95,22 +95,19 @@ namespace nes {
         case 0x4 :
         case 0x5 :
             {
-                //if (addr < 0x4020){
-                //    io_regs[addr & 0xff] = data;
-                //
-                //    //writing to $4014 will trigger DMA;
-                //    //if (addr == 0x4014){
-                //    //    //
-                //    //    if (cpu_halt == false) extra_dma_cycles = 0;
-                //    //    cpu_halt = true;
-                //    //}
-                //
-                //    return true;
-                //}
-                //else {
-                //    //TODO: Expansion ROM
-                //    return false;
-                //}
+                //writing to $4014 will trigger DMA;
+                if (addr == 0x4014){
+                    //TODO: DMA access;
+                    /*if (cpu_halt == false) extra_dma_cycles = 0;
+                    cpu_halt = true;*/
+                }
+                else if (addr >= 0x4016 && addr <= 0x4017) {
+                    //Write 1 to $4016 to signal the controller to poll its input
+                    //Write 0 to $4016 to finish the poll
+                    controller_state[addr & 0x1] = controller[addr & 0x1];
+                    return true;
+                }
+
                 return false;
             }
             break;

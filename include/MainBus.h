@@ -42,10 +42,20 @@ namespace nes {
         void set_nmi() {
             nmi_detected = true;
         }
+    public:
+        Byte controller[2];
+
     private:
         RAM ram;//ram for CPU;
         Byte oam_dma = 0; //$4014
         //IO_REG io_regs;
+        Byte controller_state[2];
+
+        CPU *cpu = nullptr;//cpu pointer is used for informing cpu: how many dma extra cycles counted, and interrupts;
+        PPU *ppu = nullptr;
+        std::shared_ptr<Mapper> mapper = nullptr;
+
+
 
         Counter sys_clock = 0;//count CPU clock cycles;
 
@@ -57,12 +67,6 @@ namespace nes {
         //   ^---- deprecated;
         bool cpu_halt = false;//used by OAM_DMA;
         Byte extra_dma_cycles = 0;//used by OAM_DMA;
-
-        //cpu pointer is used for informing cpu: how many dma extra cycles counted, and interrupts;
-        CPU *cpu = nullptr;
-        PPU *ppu = nullptr;
-        std::shared_ptr<Mapper> mapper = nullptr;
-        
     };
 
 };//end nes

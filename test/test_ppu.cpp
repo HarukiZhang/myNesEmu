@@ -19,14 +19,21 @@ using SPAN = std::chrono::duration<double>;
 using TP = std::chrono::steady_clock::time_point;
 using SCLK = std::chrono::steady_clock;
 
-constexpr int kRIGHT_COL = 518;
-
 
 class Demo : public olc::PixelGameEngine {
 public:
+	static constexpr int kRIGHT_COL = 518;
+	static constexpr int kSTATUS_BAR_X = 10;
+	static constexpr int kSTATUS_BAR_Y = 490;
+
 	Demo() { sAppName = "myNesEmu_test_ppu"; }
 private:
 	bool OnUserCreate() override {
+		/*
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
+		*/
+
 		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
@@ -54,13 +61,22 @@ private:
 	bool OnUserUpdate(float fElapsedTime) override {
 		Clear(olc::DARK_BLUE);
 
-		if (GetKey(olc::Key::SPACE).bPressed) bEmulationRun = !bEmulationRun;
+		mbus.controller[0] = 0x0;
+		mbus.controller[0] |= GetKey(olc::Key::J).bHeld ? nes::Button::A : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::K).bHeld ? nes::Button::B : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::SHIFT).bHeld ? nes::Button::SELECT : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::ENTER).bHeld ? nes::Button::START : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::W).bHeld ? nes::Button::UP : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::S).bHeld ? nes::Button::DOWN : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::A).bHeld ? nes::Button::LEFT : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::D).bHeld ? nes::Button::RIGHT : 0x00;
+
+		if (GetKey(olc::Key::K1).bPressed) bEmulationRun = !bEmulationRun;
 		if (GetKey(olc::Key::R).bPressed) cpu.reset(true);//soft reset;
-		if (GetKey(olc::Key::I).bPressed) mbus.set_irq();
-		if (GetKey(olc::Key::N).bPressed) mbus.set_nmi();
 		if (GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
 
 		if (bEmulationRun) {
+			DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "Auto Run", olc::WHITE, 2);
 			if (fResidualTime > 0.0f)
 				fResidualTime -= fElapsedTime;
 			else
@@ -133,14 +149,14 @@ private:
 	void DrawCpu(int x, int y) {
 		//std::string status = "STATUS: ";
 		DrawString(x, y, "STATUS:", olc::WHITE);
-		DrawString(x + 64, y, "N", cpu.P.val & nes::FLAG::N ? olc::GREEN : olc::RED);
-		DrawString(x + 80, y, "V", cpu.P.val & nes::FLAG::V ? olc::GREEN : olc::RED);
-		DrawString(x + 96, y, "-", cpu.P.val & nes::FLAG::U ? olc::GREEN : olc::RED);
-		DrawString(x + 112, y, "B", cpu.P.val & nes::FLAG::B ? olc::GREEN : olc::RED);
-		DrawString(x + 128, y, "D", cpu.P.val & nes::FLAG::D ? olc::GREEN : olc::RED);
-		DrawString(x + 144, y, "I", cpu.P.val & nes::FLAG::I ? olc::GREEN : olc::RED);
-		DrawString(x + 160, y, "Z", cpu.P.val & nes::FLAG::Z ? olc::GREEN : olc::RED);
-		DrawString(x + 178, y, "C", cpu.P.val & nes::FLAG::C ? olc::GREEN : olc::RED);
+		DrawString(x + 64, y, "N", cpu.P.val & nes::Negative ? olc::GREEN : olc::RED);
+		DrawString(x + 80, y, "V", cpu.P.val & nes::Overflow ? olc::GREEN : olc::RED);
+		DrawString(x + 96, y, "-", cpu.P.val & nes::U_bit ? olc::GREEN : olc::RED);
+		DrawString(x + 112, y, "B", cpu.P.val & nes::B_bit ? olc::GREEN : olc::RED);
+		DrawString(x + 128, y, "D", cpu.P.val & nes::D_Mode ? olc::GREEN : olc::RED);
+		DrawString(x + 144, y, "I", cpu.P.val & nes::I_Flag ? olc::GREEN : olc::RED);
+		DrawString(x + 160, y, "Z", cpu.P.val & nes::Zero ? olc::GREEN : olc::RED);
+		DrawString(x + 178, y, "C", cpu.P.val & nes::Carry ? olc::GREEN : olc::RED);
 		DrawString(x, y + 10, "PC: $" + hex(cpu.PC, 4));
 		DrawString(x, y + 20, "A: $" + hex(cpu.A, 2) + "  [" + std::to_string(cpu.A) + "]");
 		DrawString(x, y + 30, "X: $" + hex(cpu.X, 2) + "  [" + std::to_string(cpu.X) + "]");
