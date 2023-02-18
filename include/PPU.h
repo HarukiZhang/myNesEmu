@@ -26,6 +26,7 @@ namespace nes {
         olc::Sprite& get_screen();
         olc::Pixel& get_color(Byte palet, Byte pixel);
         olc::Sprite& get_pattern_table(Byte tb_sel, Byte palette);
+        std::string get_obj_attr_ent(Word index);
 
     private:
         void fetch_bkgr_tile();
@@ -74,6 +75,7 @@ namespace nes {
         LOOPY_REG temp_addr;//temp vram addr, or as the address of the top left onscreen tile;
         Byte fine_x = 0;//fine x scroll; low 3 bits address 8 pixels;
         bool is_first_write = false;//toggle: 1 = after 1st write; 0 = after 2nd write / init;
+        Byte addr_increment = 1;
         
         Word bkgr_addr = 0;
         Byte bkgr_next_id = 0;

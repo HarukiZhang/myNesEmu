@@ -21,7 +21,7 @@ namespace nes {
         //TODO: JoySticks IO functions;
         
         //TODO: DMA or direct access to OAM;
-        void OAM_DMA();
+        void oam_transfer(Word offset, Byte data);
         //TODO: DMC DMA fucntion;
         //void DMC_DMA();
 
@@ -47,7 +47,6 @@ namespace nes {
 
     private:
         RAM ram;//ram for CPU;
-        Byte oam_dma = 0; //$4014
         //IO_REG io_regs;
         Byte controller_state[2];
 

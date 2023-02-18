@@ -326,7 +326,7 @@ namespace nes {
             is_first_write = false;
             break;
         case 4 : //$2004 : OAM data reg;
-            data = oam_data;
+            data = oam_data = oam[oam_addr];
             break;
         case 7 : //$2007 : PPU memory data;
             //vram reading has one cycle delay;
@@ -336,7 +336,7 @@ namespace nes {
             if (vram_addr.val >= kPALETTE_BASE)  //palette do not delay;
                 data = ppu_data;
             //all read from ppu_data automatically increment vram_addr;
-            vram_addr.val += (ppu_ctrl.incr_mode ? 32 : 1);
+            vram_addr.val += addr_increment;
             break;
         default:
             //reading a "write-only" reg returns the latch's
@@ -353,6 +353,7 @@ namespace nes {
             //only for writable regs;
         case 0 : //$2000 : PPU control reg;
             ppu_ctrl = data;//"Write to PPUCTRL: Set NMI_output to bit 7." --nesdev;
+            addr_increment = ppu_ctrl.incr_mode ? 32 : 1;
             temp_addr.nt_sel_x = ppu_ctrl.nt_select & 0x1;
             temp_addr.nt_sel_y = (ppu_ctrl.nt_select & 0x2) >> 1;
             //"If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1), 
@@ -369,7 +370,7 @@ namespace nes {
             oam_addr = data;
             break;
         case 4 : //$2004 : OAM data reg;
-            oam_data = data;
+            oam[oam_addr & 0xff] = oam_data = data;
             break;
         case 5 : //$2005 : screen scroll offset reg;
             ppu_scroll = data;
@@ -399,7 +400,7 @@ namespace nes {
             ppu_data = data;
             this->write(vram_addr.val, data);
             //all write to ppu_data automatically increment vram_addr;
-            vram_addr.val += (ppu_ctrl.incr_mode ? 32 : 1);
+            vram_addr.val += addr_increment;
             break;
         default:
             return false;
@@ -552,6 +553,34 @@ namespace nes {
             }
         }
         return spr_pattern_table[tb_sel];
+    }
+
+    std::string PPU::get_obj_attr_ent(Word index)
+    {
+        auto hex = [](uint32_t n) {
+            char s[3]{ 0,0,0 };
+            for (int i = 1; i >= 0; i--, n >>= 4)
+                s[i] = "0123456789ABCDEF"[n & 0xF];
+            return s;
+        };
+        auto bin = [](uint32_t n) {
+            char s[5]{};
+            for (int i = 3; i >= 0; --i, n >>= 1)
+                s[i] = "01"[n & 0x1];
+            return s;
+        };
+
+        std::string str{ "(" };
+        str += hex(oam.obj_attr[index].x_coord);
+        str += ",";
+        str += hex(oam.obj_attr[index].y_coord);
+        str += ")  ";
+        str += hex(oam.obj_attr[index].index);
+        str += "  ";
+        str += bin((oam.obj_attr[index][2] & 0xf0) >> 4);
+        str += " ";
+        str += bin(oam.obj_attr[index][2] & 0x0f);
+        return str;
     }
 
 

@@ -56,10 +56,8 @@ namespace nes {
         case 0x4 :
         case 0x5 :
             {
-                if (addr == 0x4014) {
-                //TODO : DMA
-                }
-                else if (addr >= 0x4016 && addr <= 0x4017) {
+                //no read from $4014;
+                if (addr >= 0x4016 && addr <= 0x4017) {
                     data = (controller_state[addr & 0x1] & 0x80) > 0;
                     controller_state[addr & 0x1] <<= 1;
                     return true;
@@ -95,11 +93,10 @@ namespace nes {
         case 0x4 :
         case 0x5 :
             {
-                //writing to $4014 will trigger DMA;
                 if (addr == 0x4014){
-                    //TODO: DMA access;
-                    /*if (cpu_halt == false) extra_dma_cycles = 0;
-                    cpu_halt = true;*/
+                    //writing to $4014 will trigger OAM DMA;
+                    ppu->oam_addr = 0;//is this clear effective?
+                    cpu->oam_halt(data);
                 }
                 else if (addr >= 0x4016 && addr <= 0x4017) {
                     //Write 1 to $4016 to signal the controller to poll its input
@@ -120,21 +117,9 @@ namespace nes {
         }
     }
 
-    void MainBus::OAM_DMA(){
-        Word addr = oam_dma << 8;// ($4014) * $100;
-        Word oam_cycles = 513;//512 access cycles + one halt cycle; <-- is this compute correct?
-        std::memcpy(&ppu->oam[0], &ram[addr], 0x100);
-        
-        //TODO: condition of: the optional alignment cycle;
-        //OAM DMA on its own takes 513 or 514 cycles,
-        //that is: exclude cycles before halt success ?
-    
-        cpu->dma_cycles(oam_cycles);
-    
-        cpu_halt = false;//close;
-    
-        //TODO: how to interact when encountered DMC DMA?
-        return;
+    void MainBus::oam_transfer(Word offset, Byte data){
+        ppu->oam[ppu->oam_addr] = ppu->oam_data = data;
+        ++ppu->oam_addr;
     }
 
     //void MainBus::DMC_DMA(){
@@ -163,7 +148,6 @@ namespace nes {
     void MainBus::reset(){
         sys_clock = 0;
 		cpu_halt = false;
-        oam_dma = 0;
         ram.reset();
         ppu->reset();
         //irq_detected = false;

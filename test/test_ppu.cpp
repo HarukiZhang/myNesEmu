@@ -34,7 +34,7 @@ private:
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\DonkeyKong.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -116,6 +116,8 @@ private:
 
 		//DrawCpu(kRIGHT_COL, 2);
 		//DrawCode(kRIGHT_COL, 72, 16);
+
+		//Palette:
 		const int swatch_size = 6;
 		for (int pal = 0; pal < 8; ++pal) {
 			for (int clr = 0; clr < 4; ++clr) {
@@ -130,22 +132,23 @@ private:
 		}
 		DrawRect((kRIGHT_COL + pal_sel * (swatch_size * 5) - 1), 139, (4 * swatch_size), swatch_size);
 
-
+		//NameTable:
 		olc::Sprite& temp_spr = ppu.get_pattern_table(1, pal_sel);
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
 		DrawSprite(kRIGHT_COL + 130, 5, &temp_spr, 1);
 
-		//for (uint8_t y = 0; y < 30; ++y) {
-		//	for (uint8_t x = 0; x < 32; ++x) {
-		//		uint8_t id = ppu.vram[y * 32 + x];
-		//		DrawPartialSprite(x * 16, y * 16, &temp_spr, (id & 0x0f) << 3, ((id >> 4) & 0x0f) << 3, 8, 8, 2);
-		//	}
-		//}
+		DrawOAM(kRIGHT_COL, 160, 30);
 
 		return true;
 
 	}
 
+	void DrawOAM(int x, int y, int nLines) {
+		DrawString(x, y, "POS      ID  VHP    PL");
+		for (int ent = 0; ent < nLines; ++ent) {
+			DrawString(x, (ent + 1) * 10 + y, ppu.get_obj_attr_ent(ent));
+		}
+	}
 	void DrawCpu(int x, int y) {
 		//std::string status = "STATUS: ";
 		DrawString(x, y, "STATUS:", olc::WHITE);

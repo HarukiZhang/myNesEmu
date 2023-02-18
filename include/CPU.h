@@ -18,7 +18,6 @@ namespace nes {
         CPU();
         ~CPU();
         void connect(MainBus *_bus);
-        void exe_instr();
         void clock();
         void reset(bool soft);
         void irq();
@@ -26,7 +25,7 @@ namespace nes {
 
         bool complete();
 
-        void dma_cycles(Word cc);
+        void oam_halt(Byte addr);
 
         std::map<Word, std::string> disassemble(Word addr_start, Word addr_stop);
 
@@ -38,6 +37,8 @@ namespace nes {
         void interrupt_sequence_start();
         void interrupt_sequence_end();
         void interrupt_sequence_clear();
+
+        void perform_dma();
 
         //AddrMode() and Opcodes() should return 0 or 1 to indicate
         //whether there's an additional cycle;
@@ -100,7 +101,7 @@ namespace nes {
         STATUS_FLAGS P; //status flags;
     private:
         Counter cycles = 0;
-        Counter instr_counter = 0;
+        Counter global_cycles = 0;
 
         Byte fetch_buf = 0;
         Byte addr_zp0 = 0;
@@ -111,11 +112,23 @@ namespace nes {
         Instr_Phase phase = Instr_Phase::instr_fetch;
 
         bool irq_pending = false;//internal signal for irq, which also indicates irq line is low at least starting one preceding cycle;
-        bool irq_need = false;
+        bool irq_needed = false;
 
         bool nmi_pending = false;//internal signal for nmi;
-        bool nmi_need = false;
+        bool nmi_needed = false;
         bool prev_nmi_input = false;
+
+        bool is_halt = false;
+        bool halt_needed = false;
+        bool oam_dma_needed = false;
+        bool oam_dma_running = false;
+        Word dma_counter = 0;
+        bool dmc_dma_needed = false;
+        bool dmc_dma_running = false;
+        bool dmc_dummy_read_needed = false;
+        Byte dma_addr = 0; //$4014
+        Word dma_offset = 0;
+        Byte dma_data = 0;
 
         Word temp_word = 0;
         Byte temp_byte = 0;

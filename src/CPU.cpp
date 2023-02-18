@@ -185,92 +185,127 @@ namespace nes {
         mainBus = _bus;
     }
 
-    void CPU::exe_instr(){
-        do {
-            clock();
-        } while (cycles != 0);
+    void CPU::clock(){
+        if (halt_needed && !oam_dma_running && !dmc_dma_running) {
+            //performing halting takes 1 cycle;
+            halt_needed = false;
+            is_halt = true;
+        }
+        else if (is_halt) {
+            if (oam_dma_needed) {
+                oam_dma_running = true;
+                oam_dma_needed = false;
+                dma_counter = dma_offset = 0;
+            }
+            perform_dma();
+        }
+        else {
+#ifdef S_MODE
+            switch (phase) {
+            case Instr_Phase::instr_fetch:
+                if (irq_pending || nmi_pending) {
+                    interrupt_sequence_start();
+                }
+                else {
+                    fetch(PC++, cur_opcode); //the 1st cycle of any instr;
+                    cycles = base_cycle_mtx[cur_opcode];
+
+                    //temporary: for KIL has 0 cycle;
+                    if (cycles == 0) cycles = 2;
+
+                    phase = Instr_Phase::execute;
+                    (this->*addr_mode_mtx[cur_opcode])();//here may modify phase;
+                }
+                break;
+            case Instr_Phase::execute:
+                if (cycles == 1) {
+                    (this->*operation_mtx[cur_opcode])();
+                    //extra cycle is directly added to cycles;
+                    phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
+                }
+                break;
+            case Instr_Phase::extra: //only taken branches will enter extra phase;
+                if (cycles == 1) {
+                    if (irq_needed && !irq_pending && !check_branch_cross()) {
+                        irq_needed = false;
+                    }
+                    phase = Instr_Phase::instr_fetch;
+                }
+                break;
+            case Instr_Phase::interrupt:
+                if (cycles == 3) {
+                    interrupt_sequence_end();
+                }
+                else if (cycles == 1) {
+                    interrupt_sequence_clear();
+                }
+                break;
+            case Instr_Phase::reset:
+                // idle for 8 cycles; later may use default to catch;
+                if (cycles == 1) phase = Instr_Phase::instr_fetch;
+                break;
+            default:
+                std::cout << "CPU::clock::switch error" << std::endl;
+                break;
+            }
+            detect_interrupt();
+#else
+            if (cycles == 0) {
+                fetch(PC++, cur_opcode);
+                P.U = 1;//always set unused bit 1;
+                cycles = base_cycle_mtx[cur_opcode];
+                temp_byte = (this->*addr_mode_mtx[cur_opcode])();
+                temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
+                //additional cycles;
+                cycles += temp_byte;
+                P.U = 1;
+                ++instr_counter;
+            }
+#endif
+            cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
+        }
+        ++global_cycles;
         return;
     }
 
-    void CPU::clock(){
-#ifdef S_MODE
-        switch (phase) {
-        case Instr_Phase::instr_fetch:
-            if (irq_pending || nmi_pending) {
-                interrupt_sequence_start();
-            }
-            else {
-                fetch(PC++, cur_opcode); //the 1st cycle of any instr;
-                cycles = base_cycle_mtx[cur_opcode];
-                //temporary:
-                if (cycles == 0) cycles = 2;
-                ++instr_counter;
-
-                phase = Instr_Phase::execute;
-                (this->*addr_mode_mtx[cur_opcode])();//here may modify phase;
-            }
-            break;
-        case Instr_Phase::execute:
-            if (cycles == 1) {
-                (this->*operation_mtx[cur_opcode])();
-                //extra cycle is directly added to cycles;
-                phase = (cycles > 1) ? Instr_Phase::extra : Instr_Phase::instr_fetch;
-            }
-            break;
-        case Instr_Phase::extra: //only taken branches will enter extra phase;
-            if (cycles == 1) {
-                if (irq_need && !irq_pending && !check_branch_cross()) {
-                    irq_need = false;
+    inline void CPU::perform_dma(){
+        if ((global_cycles & 0x1) == 0) {  //even CPU cycle := DMA get cycle;
+            fetch((dma_addr << 8) + dma_offset, dma_data);
+            ++dma_counter;
+        }
+        else {                             // odd CPU cycle := DMA put cycle;
+            if (dma_counter & 0x1) {
+                mainBus->oam_transfer(dma_offset, dma_data);
+                ++dma_offset;
+                ++dma_counter;
+                if (dma_counter >= 0x200) {
+                    oam_dma_running = false;
+                    is_halt = false;
                 }
-                phase = Instr_Phase::instr_fetch;
             }
-            break;
-        case Instr_Phase::interrupt:
-            if (cycles == 3) {
-                interrupt_sequence_end();
-            }
-            else if (cycles == 1) {
-                interrupt_sequence_clear();
-            }
-            break;
-        case Instr_Phase::reset:
-            // idle for 8 cycles; later may use default to catch;
-            break;
-        default:
-            std::cout << "CPU::clock::switch error" << std::endl;
-            break;
         }
-        detect_interrupt();
-#else
-        if (cycles == 0) {
-            fetch(PC++, cur_opcode);
-            P.U = 1;//always set unused bit 1;
-            cycles = base_cycle_mtx[cur_opcode];
-            temp_byte = (this->*addr_mode_mtx[cur_opcode])();
-            temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
-            //additional cycles;
-            cycles += temp_byte;
-            P.U = 1;
-            ++instr_counter;
-        }
-#endif
-        cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
-        return;
+
+    }
+
+    void CPU::oam_halt(Byte addr) {
+        halt_needed = true;
+        dma_addr = addr;
+        oam_dma_needed = true;
     }
 
     inline void CPU::detect_interrupt() {
         //update nmi internal signal cycle;
-        nmi_pending = nmi_need;
+        nmi_pending = nmi_needed;
         //edge-detection;
         if (!prev_nmi_input && mainBus->nmi_detected) {
-            nmi_need = true;
+            nmi_needed = true;
         }
         prev_nmi_input = mainBus->nmi_detected;
         
         //update irq internal signal cycle;
-        irq_pending = irq_need;
+        irq_pending = irq_needed;
         //level-detect;
-        irq_need = (!P.I && mainBus->irq_detected) ? true : false;
+        irq_needed = (!P.I && mainBus->irq_detected) ? true : false;
     }
 
     void CPU::interrupt_sequence_start() {
@@ -301,8 +336,8 @@ namespace nes {
         P.I = 1;
   
         //fetch correspond handler addr;
-        if (nmi_need) {//priority give to nmi;
-            nmi_need = false;
+        if (nmi_needed) {//priority give to nmi;
+            nmi_needed = false;
             fetch(kNMI_VECTOR, fetch_buf);
             PC = fetch_buf;
             fetch(kNMI_VECTOR + 1, fetch_buf);
@@ -330,8 +365,8 @@ namespace nes {
             S = 0xFD;//low byte of stack pointer;
             P.val = (0 | I_Flag);
 
-            irq_need = false;// <-- do not clear while soft reset; why ?
-            instr_counter = 0;
+            irq_needed = false;// <-- do not clear while soft reset; why ?
+            global_cycles = 0;
         }
 
         //fetch reset handler address;
@@ -340,7 +375,7 @@ namespace nes {
         fetch(kRESET_VECTOR + 1, fetch_buf);
         PC |= (Word)fetch_buf << 8;
 
-        phase = Instr_Phase::instr_fetch;
+        phase = Instr_Phase::reset;
 
         addr_abs = addr_rel = 0;
         addr_zp0 = 0;
@@ -351,8 +386,10 @@ namespace nes {
 
         irq_pending = false;
         nmi_pending = false;
-        nmi_need = false;
+        nmi_needed = false;
         prev_nmi_input = false;
+
+        dma_counter = 0;
 
         //reset handler takes time;
         cycles = 8;
@@ -401,10 +438,6 @@ namespace nes {
 
     bool CPU::complete(){
         return cycles == 0;
-    }
-
-    void CPU::dma_cycles(Word cc){
-        cycles += cc;
     }
 
     std::map<Word, std::string> CPU::disassemble(Word addr_start, Word addr_stop){
