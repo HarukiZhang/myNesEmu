@@ -228,7 +228,7 @@ namespace nes {
 
 	//Object Attribute Management, 256 Byte
 	struct OAM {
-		OBJ_ATTR obj_attr[kMAX_OBJ_ATTR];
+		OBJ_ATTR ent[kMAX_OBJ_ATTR];
 
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
@@ -236,8 +236,8 @@ namespace nes {
 	};
 
 	//secondary OAM, 32 Byte;
-	struct OAM_BUF {
-		OBJ_ATTR obj_attr[kMAX_OAM_BUFF];
+	struct SEC_OAM {
+		OBJ_ATTR ent[kMAX_OAM_BUFF];
 
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
@@ -246,11 +246,11 @@ namespace nes {
 
 	//palette memory, 32 Byte;
 	struct Palette {
-		Byte image_palette[kMAX_CUR_PALET];
-		Byte sprite_palette[kMAX_CUR_PALET];
+		Byte image[kMAX_CUR_PALET];
+		Byte sprite[kMAX_CUR_PALET];
 
 		Byte &operator[](Word _addr){
-			return image_palette[_addr];
+			return image[_addr];
 		}
 	};
 

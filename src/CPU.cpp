@@ -271,12 +271,12 @@ namespace nes {
     inline void CPU::perform_dma(){
         if ((global_cycles & 0x1) == 0) {  //even CPU cycle := DMA get cycle;
             fetch((dma_addr << 8) + dma_offset, dma_data);
+            ++dma_offset;
             ++dma_counter;
         }
         else {                             // odd CPU cycle := DMA put cycle;
             if (dma_counter & 0x1) {
-                mainBus->oam_transfer(dma_offset, dma_data);
-                ++dma_offset;
+                mainBus->oam_transfer(dma_data);
                 ++dma_counter;
                 if (dma_counter >= 0x200) {
                     oam_dma_running = false;

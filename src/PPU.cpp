@@ -90,8 +90,6 @@ namespace nes {
         // |261|_____________
         //
 
-        static constexpr Word kPRE_RENDER_SCANLINE = 0;
-        static constexpr Word kPOST_RENDER_SCANLINE = 241;
 
         // "If either of bits 3 or 4 is enabled, at any time outside of the vblank interval the PPU will be making continual use 
         // to the PPU address and data bus to fetch tiles to render, as well as internally fetching sprite data from the OAM."
@@ -102,14 +100,14 @@ namespace nes {
         // 
         // "Sprite 0 hit does not trigger in any area where the background or sprites are hidden."
 
-        if (scanline < kPOST_RENDER_SCANLINE){//scanlines that need to fetch;
+        if (scanline < 241){//scanlines that need to fetch;
             if (cycle > 0 && check_render_enabled()) {//non-idle cycles;
 
                 //fetch operations:
                 if (cycle == 257) sprite_fetch_enable = true;
                 else if (cycle == 321) sprite_fetch_enable = false;
 
-                if (scanline == kPRE_RENDER_SCANLINE) {//scanline 0;
+                if (scanline == 0) {//pre-render scanline;
                     //"Seconday OAM clear and Sprite evaluation do not occur on the pre-render scanline. Sprite fetches still do."
                     sec_oam_clear = false;
                     sprite_eval_enable = false;
@@ -138,20 +136,7 @@ namespace nes {
                     fetch_tile();
                     
                     if (cycle <= 256) {//background rendering cycles;
-                        if (ppu_mask.bkgr_enable) {
-                            bkgr_pixel = bkgr_attrb = 0;
-                            //locate the current bit;
-                            extract_mask = 0x8000 >> fine_x;
-                            //withdraw the pixel info;
-                            bkgr_pixel = (bkgr_shifter_patt_lo & extract_mask) > 0;
-                            bkgr_pixel |= static_cast<Byte>((bkgr_shifter_patt_hi & extract_mask) > 0) << 1;
-                            //withdraw the palette info;
-                            bkgr_attrb = (bkgr_shifter_attr_lo & extract_mask) > 0;
-                            bkgr_attrb |= static_cast<Byte>((bkgr_shifter_attr_hi & extract_mask) > 0) << 1;
-                        }
-
-                        //only need to set pixel within visible scanlines * background rendering cycles;
-                        spr_screen.SetPixel(cycle - 1, scanline, get_color(bkgr_attrb, bkgr_pixel));
+                        render_pixel();
 
                     }
 
@@ -170,7 +155,7 @@ namespace nes {
             }
             //cycle == 0 : idle;
         }
-        else if (scanline == kPOST_RENDER_SCANLINE && cycle == 1) {
+        else if (scanline == 241 && cycle == 1) {
             ppu_status.vblank_flag = 1;
             if (ppu_ctrl.nmi_enable) nmi_out = true;//expect MainBus to find out;
         }
@@ -187,6 +172,47 @@ namespace nes {
         }
 
 
+    }
+
+    inline void PPU::clear_sec_oam() {
+        //"Secondary OAM (32-byte buffer for current sprites on scanline) is initialized to $FF"
+        sec_oam[cycle - 1] = 0xFF;
+    }
+
+    void PPU::eval_sprite() {
+        union EVAL_INDEX {
+            Byte m : 2;
+            Byte n : 6;
+            EVAL_INDEX() {
+                m = n = 0;
+            }
+            Byte& operator=(Byte val) {
+                return *reinterpret_cast<Byte*>(this) = val;
+            }
+            Byte& operator++() {
+                return ++(*reinterpret_cast<Byte*>(this));
+            }
+            void skip() {
+                m = 0; ++n;
+            }
+        };
+
+        EVAL_INDEX eval_index;
+        Byte sprite_offset = 0;
+        Byte sprite_data = 0;
+
+        if ((cycle & 0x1) == 1) {//odd cycles;
+            sprite_data = oam.ent[eval_index.n][eval_index.m];
+        }
+        else {//even cycles;
+
+            if (sprite_offset < 8) {
+                sec_oam[sprite_offset] = sprite_data;
+            }
+            else if (sprite_offset == 8) {
+                ppu_status.sprite_overflow = 1;
+            }
+        }
     }
 
     void PPU::fetch_tile() {
@@ -287,6 +313,11 @@ namespace nes {
 
     }
 
+    void PPU::fetch_sprt_tile() {
+        //TODO;
+        return;
+    }
+
     inline Word PPU::get_bkgr_patt_addr() {
         //one pattern tile = 16B; there are 256 tiles within one pattern table;
         //there are two pattern table space, total 8KB space; need 13-bit address;
@@ -305,6 +336,25 @@ namespace nes {
         //   |+----------------H : Half of pattern table(0: "left"; 1: "right")
         //   +-----------------0 : Pattern table is at $0000 - $1FFF
         return (((Word)ppu_ctrl.bkgr_select << 12) | ((Word)bkgr_next_id << 4) | vram_addr.fine_y) & 0xfff7;//ensure the plane bit is 0;
+    }
+
+    inline void PPU::render_pixel() {
+        if (ppu_mask.bkgr_enable) {
+            bkgr_pixel = bkgr_attrb = 0;
+            //locate the current bit;
+            extract_mask = 0x8000 >> fine_x;
+            //withdraw the pixel info;
+            bkgr_pixel = (bkgr_shifter_patt_lo & extract_mask) > 0;
+            bkgr_pixel |= static_cast<Byte>((bkgr_shifter_patt_hi & extract_mask) > 0) << 1;
+            //withdraw the palette info;
+            bkgr_attrb = (bkgr_shifter_attr_lo & extract_mask) > 0;
+            bkgr_attrb |= static_cast<Byte>((bkgr_shifter_attr_hi & extract_mask) > 0) << 1;
+        }
+
+        //only need to set pixel within visible scanlines * background rendering cycles;
+        spr_screen.SetPixel(cycle - 1, scanline, get_color(bkgr_attrb, bkgr_pixel));
+
+        return;
     }
 
     void PPU::connect(std::shared_ptr<Mapper>& mapp){
@@ -326,7 +376,7 @@ namespace nes {
             is_first_write = false;
             break;
         case 4 : //$2004 : OAM data reg;
-            data = oam_data = oam[oam_addr];
+            data = oam[oam_addr];
             break;
         case 7 : //$2007 : PPU memory data;
             //vram reading has one cycle delay;
@@ -370,7 +420,7 @@ namespace nes {
             oam_addr = data;
             break;
         case 4 : //$2004 : OAM data reg;
-            oam[oam_addr & 0xff] = oam_data = data;
+            oam[oam_addr] = data;
             break;
         case 5 : //$2005 : screen scroll offset reg;
             ppu_scroll = data;
@@ -494,7 +544,7 @@ namespace nes {
     // }
     
     // void PPU::oam_dma(PPU &_ppu, const Byte *_ram_ptr){
-    //     std::memcpy(reinterpret_cast<Byte*>(&_ppu.oam.obj_attr[0]), _ram_ptr, 0x100);
+    //     std::memcpy(reinterpret_cast<Byte*>(&_ppu.oam.ent[0]), _ram_ptr, 0x100);
     //     return;
     // }
 
@@ -571,20 +621,20 @@ namespace nes {
         };
 
         std::string str{ "(" };
-        str += hex(oam.obj_attr[index].x_coord);
+        str += hex(oam.ent[index].x_coord);
         str += ",";
-        str += hex(oam.obj_attr[index].y_coord);
+        str += hex(oam.ent[index].y_coord);
         str += ")  ";
-        str += hex(oam.obj_attr[index].index);
+        str += hex(oam.ent[index].index);
         str += "  ";
-        str += bin((oam.obj_attr[index][2] & 0xf0) >> 4);
+        str += bin((oam.ent[index][2] & 0xf0) >> 4);
         str += " ";
-        str += bin(oam.obj_attr[index][2] & 0x0f);
+        str += bin(oam.ent[index][2] & 0x0f);
         return str;
     }
 
 
-    bool PPU::obj_compare(Byte n_scanl, Byte y_coord){
+    bool PPU::check_in_range(Byte n_scanl, Byte y_coord){
         temp_word = n_scanl;
         temp_word -= y_coord;
         //check the ppu_ctrl reg to determine sprite height;
@@ -616,7 +666,7 @@ namespace nes {
         ppu_mask = 0;      //$2001
         ppu_status = 0xa0; //$2002 The VBL flag (bit 7) is random at power, and unchanged by reset. It is next set around 27384, then around 57165.
         //oam_addr = 0;    //$2003 unchanged by reset; changed during rendering and cleared at the end of normal rendering;
-        oam_data = 0;      //$2004
+        //oam_data = 0;    //$2004 <- deleted;
         ppu_scroll = 0;    //$2005
         //ppu_addr = 0;    //$2006
         ppu_data = 0;      //$2007

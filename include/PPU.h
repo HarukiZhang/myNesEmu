@@ -30,12 +30,15 @@ namespace nes {
 
     private:
         void fetch_bkgr_tile();
+        void fetch_sprt_tile();
         void fetch_tile();
+        void render_pixel();
+        void clear_sec_oam();
+        void eval_sprite();
         inline void load_bkgr_shifters();
         inline void update_shifters();
         
-        //internal helper functions:
-        bool obj_compare(Byte n_scanl, Byte y_coord);
+        bool check_in_range(Byte n_scanl, Byte y_coord);
         Word get_bkgr_patt_addr();
         bool check_render_enabled();
     
@@ -49,7 +52,7 @@ namespace nes {
         PPU_MASK ppu_mask;     //$2001
         PPU_STATUS ppu_status; //$2002
         Byte oam_addr = 0;     //$2003
-        Byte oam_data = 0;     //$2004
+        //Byte oam_data = 0;   //$2004 <- no need;
         Byte ppu_scroll = 0;   //$2005
         Byte ppu_addr = 0;     //$2006
         Byte ppu_data = 0;     //$2007
@@ -57,7 +60,7 @@ namespace nes {
         VRAM vram;
         Palette palette;
         OAM oam;
-        OAM_BUF oam_buf;
+        SEC_OAM sec_oam;
 
         olc::Pixel  pal_screen[0x40];//system palette
         olc::Sprite spr_screen{ 256, 240 };

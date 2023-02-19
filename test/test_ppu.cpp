@@ -74,6 +74,7 @@ private:
 		if (GetKey(olc::Key::K1).bPressed) bEmulationRun = !bEmulationRun;
 		if (GetKey(olc::Key::R).bPressed) cpu.reset(true);//soft reset;
 		if (GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
+		if (GetKey(olc::Key::G).bPressed) bGridOn = !bGridOn;
 
 		if (bEmulationRun) {
 			DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "Auto Run", olc::WHITE, 2);
@@ -114,42 +115,49 @@ private:
 
 		DrawSprite(0, 0, &ppu.get_screen(), 2);
 
+		if (bGridOn) draw_grid(0, 0);
 		//DrawCpu(kRIGHT_COL, 2);
 		//DrawCode(kRIGHT_COL, 72, 16);
 
 		//Palette:
-		const int swatch_size = 6;
-		for (int pal = 0; pal < 8; ++pal) {
-			for (int clr = 0; clr < 4; ++clr) {
-				FillRect(
-					kRIGHT_COL + pal * (swatch_size * 5) + clr * swatch_size,
-					140,
-					swatch_size,
-					swatch_size,
-					ppu.get_color(pal, clr)
-				);
-			}
-		}
-		DrawRect((kRIGHT_COL + pal_sel * (swatch_size * 5) - 1), 139, (4 * swatch_size), swatch_size);
+		draw_palette(kRIGHT_COL, 140, pal_sel);
 
 		//NameTable:
 		olc::Sprite& temp_spr = ppu.get_pattern_table(1, pal_sel);
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
 		DrawSprite(kRIGHT_COL + 130, 5, &temp_spr, 1);
 
-		DrawOAM(kRIGHT_COL, 160, 30);
+		draw_oam(kRIGHT_COL, 160, 30);
 
 		return true;
 
 	}
-
-	void DrawOAM(int x, int y, int nLines) {
+	void draw_grid(int x, int y) {
+		for (int i = 0; i <= 32; ++i)
+			DrawLine(x + i * 16, y, x + i * 16, y + 480, olc::RED);
+		for (int i = 0 ; i <= 30; ++i)
+			DrawLine(x, y + i * 16, x + 512, y + i * 16, olc::RED);
+	}
+	void draw_palette(int x, int y, int idx) {
+		const int swatch_size = 6;
+		for (int pal = 0; pal < 8; ++pal) {
+			for (int clr = 0; clr < 4; ++clr) {
+				FillRect(
+					x + pal * (swatch_size * 5) + clr * swatch_size, y,
+					swatch_size, swatch_size,
+					ppu.get_color(pal, clr)
+				);
+			}
+		}
+		DrawRect((x + idx * (swatch_size * 5) - 1), y - 1, (4 * swatch_size), swatch_size);
+	}
+	void draw_oam(int x, int y, int nLines) {
 		DrawString(x, y, "POS      ID  VHP    PL");
 		for (int ent = 0; ent < nLines; ++ent) {
 			DrawString(x, (ent + 1) * 10 + y, ppu.get_obj_attr_ent(ent));
 		}
 	}
-	void DrawCpu(int x, int y) {
+	void draw_cpu(int x, int y) {
 		//std::string status = "STATUS: ";
 		DrawString(x, y, "STATUS:", olc::WHITE);
 		DrawString(x + 64, y, "N", cpu.P.val & nes::Negative ? olc::GREEN : olc::RED);
@@ -166,7 +174,7 @@ private:
 		DrawString(x, y + 40, "Y: $" + hex(cpu.Y, 2) + "  [" + std::to_string(cpu.Y) + "]");
 		DrawString(x, y + 50, "Stack P: $" + hex(cpu.S, 4));
 	}
-	void DrawCode(int x, int y, int nLines) {
+	void draw_code(int x, int y, int nLines) {
 		std::map<nes::Word, std::string>::iterator it_a, it_t;
 		it_t = map_asm.find(cpu.PC);
 		if (it_t == map_asm.end()) return;
@@ -202,6 +210,7 @@ private:
 private:
 
 	bool bEmulationRun = false;
+	bool bGridOn = false;
 
 	float fResidualTime = 0.0f;
 	size_t global_counter = 0;

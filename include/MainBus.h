@@ -18,12 +18,10 @@ namespace nes {
         void reset();
 
         //TODO: APU related functions;
-        //TODO: JoySticks IO functions;
         
-        //TODO: DMA or direct access to OAM;
-        void oam_transfer(Word offset, Byte data);
+        void oam_transfer(Byte data);
+
         //TODO: DMC DMA fucntion;
-        //void DMC_DMA();
 
         void clock();
         //check signal from each devices;
@@ -35,12 +33,6 @@ namespace nes {
         //debug:
         Byte get_ram(Word addr) {
             return ram[addr];
-        }
-        void set_irq() {
-            irq_detected = true;
-        }
-        void set_nmi() {
-            nmi_detected = true;
         }
     public:
         Byte controller[2];
@@ -62,10 +54,6 @@ namespace nes {
         bool irq_detected = false;
         bool nmi_detected = false;
 
-        // bool cycle_rw = false;//true: read cycle; false: write cycle;
-        //   ^---- deprecated;
-        bool cpu_halt = false;//used by OAM_DMA;
-        Byte extra_dma_cycles = 0;//used by OAM_DMA;
     };
 
 };//end nes

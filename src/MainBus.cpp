@@ -117,8 +117,8 @@ namespace nes {
         }
     }
 
-    void MainBus::oam_transfer(Word offset, Byte data){
-        ppu->oam[ppu->oam_addr] = ppu->oam_data = data;
+    void MainBus::oam_transfer(Byte data){
+        ppu->oam[ppu->oam_addr] = data;
         ++ppu->oam_addr;
     }
 
@@ -147,7 +147,6 @@ namespace nes {
     
     void MainBus::reset(){
         sys_clock = 0;
-		cpu_halt = false;
         ram.reset();
         ppu->reset();
         //irq_detected = false;
