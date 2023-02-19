@@ -103,16 +103,19 @@ namespace nes {
         if (scanline < 241){//scanlines that need to fetch;
             if (cycle > 0 && check_render_enabled()) {//non-idle cycles;
 
-                //fetch operations:
-                if (cycle == 257) sprite_fetch_enable = true;
-                else if (cycle == 321) sprite_fetch_enable = false;
-
                 if (scanline == 0) {//pre-render scanline;
                     //"Seconday OAM clear and Sprite evaluation do not occur on the pre-render scanline. Sprite fetches still do."
-                    sec_oam_clear = false;
-                    sprite_eval_enable = false;
+                    if (cycle <= 256) {
+                        fetch_bkgr_tile();
+                    }
+                    else if (cycle <= 320) {
+                        //Sprite Fetches;
+                    }
+                    else if (cycle <= 336) {
+                        fetch_bkgr_tile();
+                    }
+                    //ignore last two unused NT fetches;
 
-                    fetch_tile();
 
                     if (cycle == 1) {
                         ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
@@ -126,19 +129,23 @@ namespace nes {
                     //Note: skipping should only occur when rendering is enabled;
                 }
                 else {//scanline 1 ~ 240 : visible scanlines
-                    if (cycle == 1) sec_oam_clear = true;
-                    else if (cycle == 65) {
-                        sec_oam_clear = false;
-                        sprite_eval_enable = true;
-                    }
-                    else if (cycle == 257) sprite_eval_enable = false;
-
-                    fetch_tile();
-                    
-                    if (cycle <= 256) {//background rendering cycles;
+                    if (cycle <= 256) {
+                        if (cycle <= 64) {
+                            clear_sec_oam();
+                        }
+                        else {
+                            //eval_sprite();
+                        }
+                        fetch_bkgr_tile();
                         render_pixel();
-
                     }
+                    else if (cycle <= 320) {
+                        //Sprite Fetches;
+                    }
+                    else if (cycle <= 336) {
+                        fetch_bkgr_tile();
+                    }
+                    //ignore last two unused NT fetches;
 
                 }
 
@@ -146,6 +153,7 @@ namespace nes {
                 //between cycle 258 - 320, it's harmless to do the update as well;
                 //beyond cycle 336, should not update;
                 if (cycle < 337) update_shifters();
+                else if (cycle == 337) load_bkgr_shifters();
                 
                 //addr operations:
                 if (cycle == 256)
@@ -176,7 +184,7 @@ namespace nes {
 
     inline void PPU::clear_sec_oam() {
         //"Secondary OAM (32-byte buffer for current sprites on scanline) is initialized to $FF"
-        sec_oam[cycle - 1] = 0xFF;
+        sec_oam[cycle & 0x1f] = 0xFF;
     }
 
     void PPU::eval_sprite() {
@@ -272,45 +280,36 @@ namespace nes {
     }
 
     void PPU::fetch_bkgr_tile() {
-
-        if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 338)) {
-
-            switch (cycle & 0x7) {
-            case 0://for 8th cycles; but not for the absolute 0 cycle. which is idle;
-                vram_addr.inc_hori();
-                break;
-            case 1://fetch name table byte;
-                load_bkgr_shifters();
-                read(vram_addr.get_nt_addr(), bkgr_next_id);
-                break;
-            case 2://just do nothing;
-                break;
-            case 3://fetch attribute table byte;
-                read(vram_addr.get_at_addr(), bkgr_next_attr);
-                //choose square from 4;
-                if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
-                if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
-                bkgr_next_attr &= 0x3;
-                break;
-            case 4://just do nothing;
-                break;
-            case 5://fetch background tile low byte;
-                bkgr_addr = get_bkgr_patt_addr();
-                read(bkgr_addr, bkgr_next_lsb);
-                break;
-            case 6://just do nothing;
-                break;
-            default://for 7th cycles : fetch background tile high byte;
-                bkgr_addr |= 0x0008;//set plane bit to access high byte;
-                read(bkgr_addr, bkgr_next_msb);
-                break;
-            }
-
-        }
-        else if (cycle == 339) {
+        switch (cycle & 0x7) {
+        case 0://for 8th cycles; but not for the absolute 0 cycle. which is idle;
+            vram_addr.inc_hori();
+            break;
+        case 1://fetch name table byte;
+            load_bkgr_shifters();
             read(vram_addr.get_nt_addr(), bkgr_next_id);
+            break;
+        case 2://just do nothing;
+            break;
+        case 3://fetch attribute table byte;
+            read(vram_addr.get_at_addr(), bkgr_next_attr);
+            //choose square from 4;
+            if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
+            if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
+            bkgr_next_attr &= 0x3;
+            break;
+        case 4://just do nothing;
+            break;
+        case 5://fetch background tile low byte;
+            bkgr_addr = get_bkgr_patt_addr();
+            read(bkgr_addr, bkgr_next_lsb);
+            break;
+        case 6://just do nothing;
+            break;
+        default://for 7th cycles : fetch background tile high byte;
+            bkgr_addr |= 0x0008;//set plane bit to access high byte;
+            read(bkgr_addr, bkgr_next_msb);
+            break;
         }
-
     }
 
     void PPU::fetch_sprt_tile() {

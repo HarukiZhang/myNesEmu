@@ -72,9 +72,9 @@ private:
 		mbus.controller[0] |= GetKey(olc::Key::D).bHeld ? nes::Button::RIGHT : 0x00;
 
 		if (GetKey(olc::Key::K1).bPressed) bEmulationRun = !bEmulationRun;
-		if (GetKey(olc::Key::R).bPressed) cpu.reset(true);//soft reset;
-		if (GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
-		if (GetKey(olc::Key::G).bPressed) bGridOn = !bGridOn;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::R).bPressed) cpu.reset(true);//soft reset;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::G).bPressed) bGridOn = !bGridOn;
 
 		if (bEmulationRun) {
 			DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "Auto Run", olc::WHITE, 2);
