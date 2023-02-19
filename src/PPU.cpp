@@ -1,5 +1,7 @@
 #include "PPU.h"
 
+#define S_MODE
+
 namespace nes {
     
     PPU::PPU(){
@@ -100,7 +102,13 @@ namespace nes {
         // 
         // "Sprite 0 hit does not trigger in any area where the background or sprites are hidden."
 
-        if (scanline < 241){//scanlines that need to fetch;
+        if (scanline < 241) {//scanlines that need to fetch;
+#ifdef S_MODE
+            if (check_render_enabled()) {
+                if (scanline == 0) (this->*micop_mtx[0][cycle])();
+                else (this->*micop_mtx[1][cycle])();
+            }
+#else
             if (cycle > 0 && check_render_enabled()) {//non-idle cycles;
 
                 if (scanline == 0) {//pre-render scanline;
@@ -162,6 +170,7 @@ namespace nes {
                     vram_addr.reset_hori(temp_addr);//reset nt_select bit for x-axis;
             }
             //cycle == 0 : idle;
+#endif
         }
         else if (scanline == 241 && cycle == 1) {
             ppu_status.vblank_flag = 1;

@@ -42,6 +42,66 @@ namespace nes {
         Word get_bkgr_patt_addr();
         bool check_render_enabled();
     
+        //micro operations:
+        using MICOP = void(PPU::*)(void);
+        void IDLE_DOT() {}
+        void CLR_FLAG() {
+            PR_FETCH();
+            ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+            nmi_out = false;
+        }
+        void PR_FETCH() {
+            fetch_bkgr_tile();
+        }
+        void VISIBLES() {
+            fetch_bkgr_tile();
+            render_pixel();
+            update_shifters();
+        }
+        void CLR_SOAM() {
+            VISIBLES();
+            clear_sec_oam();
+        }
+        void SPR_EVAL() {
+            VISIBLES();
+            eval_sprite();
+        }
+        void INC_VERT() {
+            SPR_EVAL();
+            vram_addr.inc_vert();
+        }
+        void INC_VT_P() {
+            PR_FETCH();
+            vram_addr.inc_vert();
+        }
+        void SP_FETCH() {
+            fetch_sprt_tile();
+        }
+        void RST_HORI() {
+            SP_FETCH();
+            vram_addr.reset_hori(temp_addr);
+        }
+        void RST_VERT() {
+            SP_FETCH();
+            vram_addr.reset_vert(temp_addr);
+        }
+        void FT_FETCH() {
+            fetch_bkgr_tile();
+            update_shifters();
+        }
+        void UD_FETCH() {
+            switch (cycle & 0x7) {
+            case 1://for cycle 337;
+                load_bkgr_shifters();
+                read(vram_addr.get_nt_addr(), bkgr_next_id);
+                break;
+            case 3://for cycle 339;
+                read(vram_addr.get_nt_addr(), bkgr_next_id);
+                if (scanline == 0) ++cycle;//odd frame skip;
+                break;
+            }
+        }
+
     public:
         bool nmi_out = false;//active low signal outputted from PPU, can be seen by bus and CPU;
         bool frame_complete = false;
@@ -100,6 +160,102 @@ namespace nes {
         Byte temp_byte = 0;
       
         std::shared_ptr<Mapper> mapper = nullptr;
+
+        //micro operation matrix: 
+        static constexpr MICOP micop_mtx[2][341] = {
+            {
+                // row 0 refers to the pre-render scanline;
+                // row 1 refers to visible scanlines;
+                //    0              1              2              3              4              5              6              7
+                &PPU::IDLE_DOT,&PPU::CLR_FLAG,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 0
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 1
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 2
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 3
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 4
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 5
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 6
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 7
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 8
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 9
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 10
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 11
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 12
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 13
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 14
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 15
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 16
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 17
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 18
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 19
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 20
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 21
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 22
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 23
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 24
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 25
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 26
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 27
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 28
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 29
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 30
+                &PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH,&PPU::PR_FETCH, // 31
+                &PPU::INC_VT_P,&PPU::RST_HORI,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 32
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 33
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 34
+                &PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT, // 35
+                &PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT, // 36
+                &PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT,&PPU::RST_VERT, // 37
+                &PPU::RST_VERT,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 38
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 39
+                &PPU::SP_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH, // 40
+                &PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH, // 41
+                &PPU::FT_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH, },                                           // 42
+            {
+                //    0              1              2              3              4              5              6              7
+                &PPU::IDLE_DOT,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 0
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 1
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 2
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 3
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 4
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 5
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 6
+                &PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM,&PPU::CLR_SOAM, // 7
+                &PPU::CLR_SOAM,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 8
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 9
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 10
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 11
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 12
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 13
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 14
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 15
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 16
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 17
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 18
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 19
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 20
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 21
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 22
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 23
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 24
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 25
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 26
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 27
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 28
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 29
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 30
+                &PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL,&PPU::SPR_EVAL, // 31
+                &PPU::INC_VERT,&PPU::RST_HORI,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 32
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 33
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 34
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 35
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 36
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 37
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 38
+                &PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH,&PPU::SP_FETCH, // 39
+                &PPU::SP_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH, // 40
+                &PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH,&PPU::FT_FETCH, // 41
+                &PPU::FT_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH,&PPU::UD_FETCH, }                                            // 42
+        };
     };
 
 };//end nes
