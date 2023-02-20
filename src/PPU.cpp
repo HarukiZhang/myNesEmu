@@ -160,7 +160,7 @@ namespace nes {
                 //both in visible and pre-render scanline shifters need to be updated;
                 //between cycle 258 - 320, it's harmless to do the update as well;
                 //beyond cycle 336, should not update;
-                if (cycle < 337) update_shifters();
+                if (cycle < 337) update_bkgr_shifters();
                 else if (cycle == 337) load_bkgr_shifters();
                 
                 //addr operations:
@@ -197,96 +197,140 @@ namespace nes {
     }
 
     void PPU::eval_sprite() {
-        union EVAL_INDEX {
-            Byte m : 2;
-            Byte n : 6;
-            EVAL_INDEX() {
-                m = n = 0;
-            }
-            Byte& operator=(Byte val) {
-                return *reinterpret_cast<Byte*>(this) = val;
-            }
-            Byte& operator++() {
-                return ++(*reinterpret_cast<Byte*>(this));
-            }
-            void skip() {
-                m = 0; ++n;
-            }
-        };
+#ifdef S_MODE
+        if (eval_idx == 0x40) return;
+        if ((cycle & 0x1) == 0) return;//even cycle no op;
+        eval_data = oam.ent[eval_idx & 0x3f][eval_off & 0x3];
 
-        EVAL_INDEX eval_index;
-        Byte sprite_offset = 0;
-        Byte sprite_data = 0;
+        switch (eval_state) {
+        case 0:
 
-        if ((cycle & 0x1) == 1) {//odd cycles;
-            sprite_data = oam.ent[eval_index.n][eval_index.m];
+            if (soam_idx < 8) {
+
+                if (check_in_range(eval_data)) {
+                    //find that sprite#0 has been in range;
+                    if (eval_idx == 0) sprite_zero_hit_possible = true;//inform the next scanline;
+        case 1:
+                    eval_state = 1;
+                    sec_oam.ent[soam_idx][eval_off & 0x3] = eval_data;
+                    ++eval_off;
+                    if (eval_off >= 4) {
+                        ++soam_idx;
+                        ++eval_idx;
+                        eval_off = 0;
+                        eval_state = 0;
+                    }
+                    break;
+                }
+                else {
+                    ++eval_idx;
+                    eval_off = 0;
+                    eval_state = 0;
+                }
+                break;
+            }
+            else {
+        case 2:
+                eval_state = 2;
+                if (check_in_range(eval_data)) {
+                    ppu_status.sprite_overflow = 1;
+                }
+                else {
+                    ++eval_idx;
+                    ++eval_off;
+                }
+            }
+            break;
+        default:
+            std::clog << "eval_sprite: swtich error" << std::endl;
+            break;
         }
-        else {//even cycles;
+#else
 
-            if (sprite_offset < 8) {
-                sec_oam[sprite_offset] = sprite_data;
+        //evaluating sprites period has 3 * 64 = 192 cycles;
+        if (eval_idx == 0x40) return;
+        if (soam_idx < 8) {
+            if (check_in_range(oam.ent[eval_idx & 0x3f][0])) {
+                sec_oam.ent[soam_idx][0] = oam.ent[eval_idx & 0x3f][0];
+                for (++eval_off; eval_off < 4; ++eval_off) {
+                    sec_oam.ent[soam_idx][eval_off & 0x3] = oam.ent[eval_idx & 0x3f][eval_off & 0x3];
+                }
+                ++soam_idx;
             }
-            else if (sprite_offset == 8) {
+            ++eval_idx;
+            eval_off = 0;
+        }
+        else {
+            //"The first such check correctly checks the y coordinate of the next OAM entry, but after that the logic breaks 
+            //  and starts scanning OAM "diagonally", evaluating the tile number/attributes/X-coordinates of subsequent 
+            //  OAM entries as Y-coordinates (due to incorrectly incrementing m when moving to the next sprite). 
+            //  This results in inconsistent sprite overflow behavior showing both false positives and false negatives."
+            if (check_in_range(oam.ent[eval_idx][eval_off])) {
                 ppu_status.sprite_overflow = 1;
             }
-        }
-    }
-
-    void PPU::fetch_tile() {
-        if (cycle < 339) {
-            switch (cycle & 0x7) {
-            case 0://8th cycle
-                if (!sprite_fetch_enable) {
-                    vram_addr.inc_hori();
-                }
-                break;
-            case 1://fetch name table byte;
-                if (!sprite_fetch_enable) {
-                    load_bkgr_shifters();
-                    read(vram_addr.get_nt_addr(), bkgr_next_id);
-                }
-                break;
-            case 2:
-                break;
-            case 3://fetch attribute table byte;
-                if (!sprite_fetch_enable) {
-                    read(vram_addr.get_at_addr(), bkgr_next_attr);
-                    //choose square from 4;
-                    if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
-                    if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
-                    bkgr_next_attr &= 0x3;
-                }
-                break;
-            case 4:
-                break;
-            case 5://fetch low byte;
-                if (sprite_fetch_enable) {
-                    //TODO
-                }
-                else {
-                    bkgr_addr = get_bkgr_patt_addr();
-                    read(bkgr_addr, bkgr_next_lsb);
-                }
-                break;
-            case 6:
-                break;
-            case 7://fetch high byte;
-                if (sprite_fetch_enable) {
-                    //TODO
-                }
-                else {
-                    bkgr_addr |= 0x0008;//set plane bit to access high byte;
-                    read(bkgr_addr, bkgr_next_msb);
-                }
-                break;
-            default:
-                break;
+            else {
+                ++eval_idx;
+                ++eval_off;
             }
         }
-        else if (cycle == 339)
-            read(vram_addr.get_nt_addr(), bkgr_next_id);
-
+#endif
     }
+
+    //void PPU::fetch_tile() {
+    //    if (cycle < 339) {
+    //        switch (cycle & 0x7) {
+    //        case 0://8th cycle
+    //            if (!sprite_fetch_enable) {
+    //                vram_addr.inc_hori();
+    //            }
+    //            break;
+    //        case 1://fetch name table byte;
+    //            if (!sprite_fetch_enable) {
+    //                load_bkgr_shifters();
+    //                read(vram_addr.get_nt_addr(), bkgr_next_id);
+    //            }
+    //            break;
+    //        case 2:
+    //            break;
+    //        case 3://fetch attribute table byte;
+    //            if (!sprite_fetch_enable) {
+    //                read(vram_addr.get_at_addr(), bkgr_next_attr);
+    //                //choose square from 4;
+    //                if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
+    //                if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
+    //                bkgr_next_attr &= 0x3;
+    //            }
+    //            break;
+    //        case 4:
+    //            break;
+    //        case 5://fetch low byte;
+    //            if (sprite_fetch_enable) {
+    //                //TODO
+    //            }
+    //            else {
+    //                bkgr_addr = get_bkgr_patt_addr();
+    //                read(bkgr_addr, bkgr_next_lsb);
+    //            }
+    //            break;
+    //        case 6:
+    //            break;
+    //        case 7://fetch high byte;
+    //            if (sprite_fetch_enable) {
+    //                //TODO
+    //            }
+    //            else {
+    //                bkgr_addr |= 0x0008;//set plane bit to access high byte;
+    //                read(bkgr_addr, bkgr_next_msb);
+    //            }
+    //            break;
+    //        default:
+    //            break;
+    //        }
+    //    }
+    //    else if (cycle == 339)
+    //        read(vram_addr.get_nt_addr(), bkgr_next_id);
+    //
+    //}
 
     void PPU::fetch_bkgr_tile() {
         switch (cycle & 0x7) {
@@ -322,9 +366,84 @@ namespace nes {
     }
 
     void PPU::fetch_sprt_tile() {
-        //TODO;
+        auto flip_hori = [](Byte b) {
+            b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
+            b = (b & 0xcc) >> 2 | (b & 0x33) << 2;
+            b = (b & 0xaa) >> 1 | (b & 0x55) << 1;
+            return b;
+        };
+
+        switch (cycle & 0x7) {
+        case 1:
+            read(vram_addr.get_nt_addr(), bkgr_next_id);
+            break;
+        case 3:
+            read(vram_addr.get_at_addr(), bkgr_next_attr);
+            break;
+        case 5:
+            if (sprt_fetch_idx < sprt_num) {
+                sprt_addr = get_sprt_addr();
+                read(sprt_addr, sprt_shifters_lo[sprt_fetch_idx]);
+                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+                    sprt_shifters_lo[sprt_fetch_idx] = flip_hori(sprt_shifters_lo[sprt_fetch_idx]);
+                }
+                //copy x_coord to x_counter;
+                sprt_x_counters[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx].x_coord;
+            }
+            break;
+        case 7:
+            if (sprt_fetch_idx < sprt_num) {
+                sprt_addr |= 0x0008;
+                read(sprt_addr, sprt_shifters_hi[sprt_fetch_idx]);
+                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+                    sprt_shifters_hi[sprt_fetch_idx] = flip_hori(sprt_shifters_hi[sprt_fetch_idx]);
+                }
+                //copy attribute byte to sprt_attr_latches;
+                sprt_attr_latches[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx][2];
+                ++sprt_fetch_idx;
+            }
+            break;
+        }
         return;
     }
+
+    inline Word PPU::get_sprt_addr() {
+        OBJ_ATTR& r_oa = sec_oam.ent[sprt_fetch_idx];
+        if (!ppu_ctrl.sprite_h) {//size 8*8
+            if (!r_oa.flip_v) {//not flipped vertically;
+                return ((Word)ppu_ctrl.spr_select << 12) 
+                    | ((Word)r_oa.index << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
+            }
+            else {//flipped vertically;
+                return ((Word)ppu_ctrl.spr_select << 12) 
+                    | ((Word)r_oa.index << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
+            }
+        }
+        else {//size 8*16
+            //"For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number."
+            if (!sec_oam.ent[sprt_fetch_idx].flip_v) {
+                if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the top half;
+                    return (((Word)r_oa.index & 0x1) << 12) 
+                        | (((Word)r_oa.index & 0x7e) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
+                }
+                else {//at bottom half;
+                    return (((Word)r_oa.index & 0x1) << 12) 
+                        | ((((Word)r_oa.index & 0x7e) + 1) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
+                }
+            }
+            else {
+                if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
+                    return (((Word)r_oa.index & 0x1) << 12) 
+                        | ((((Word)r_oa.index & 0x7e) + 1) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
+                }
+                else {//at bottom half;
+                    return (((Word)r_oa.index & 0x1) << 12) 
+                        | (((Word)r_oa.index & 0x7e) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
+                }
+            }
+        }
+    }
+
 
     inline Word PPU::get_bkgr_patt_addr() {
         //one pattern tile = 16B; there are 256 tiles within one pattern table;
@@ -347,6 +466,7 @@ namespace nes {
     }
 
     inline void PPU::render_pixel() {
+
         if (ppu_mask.bkgr_enable) {
             bkgr_pixel = bkgr_attrb = 0;
             //locate the current bit;
@@ -359,8 +479,76 @@ namespace nes {
             bkgr_attrb |= static_cast<Byte>((bkgr_shifter_attr_hi & extract_mask) > 0) << 1;
         }
 
+        if (ppu_mask.spr_enable) {
+            sprt_pixel = sprt_attrb = 0;
+            sprite_zero_being_rendered = false;
+
+            for (Byte i = 0; i < sprt_num; ++i) {
+                if (sprt_x_counters[i] == 0) {
+                    sprt_pixel = (sprt_shifters_lo[i] & 0x80) > 0;
+                    sprt_pixel |= static_cast<Byte>((sprt_shifters_hi[i] & 0x80) > 0) << 1;
+                    sprt_attrb = (sprt_attr_latches[i] & 0x3) + 0x04;//point to sprite palettes;
+                    sprt_priority = sprt_attr_latches[i] & 0x20;//0: in front of background; 1: behind background
+                    if (sprt_pixel != 0) {//if the sprite is not transparent;
+                        //although the first sprite in sec oam not necessary is sprite#0,
+                        //we could combine the status of bool sprite_zero_hit_possible
+                        //to judge whether it is;
+                        if (i == 0) sprite_zero_being_rendered = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        //Priority multiplexer decision table
+        //====================================================
+        //BG pixel	Sprite pixel	Priority	    Output
+        // 0	        0	            X	        BG ($3F00)
+        // 0	        1-3	            X	        Sprite
+        // 1-3	        0	            X	        BG
+        // 1-3	        1-3	            0	        Sprite
+        // 1-3	        1-3	            1	        BG
+
+        if (bkgr_pixel == 0) {
+            if (sprt_pixel == 0) {
+                output_pixel = output_attrb = 0;
+            }
+            else {
+                output_pixel = sprt_pixel;
+                output_attrb = sprt_attrb;
+            }
+        }
+        else {//if BG is visible
+            if (sprt_pixel == 0) {
+                output_pixel = bkgr_pixel;
+                output_attrb = bkgr_attrb;
+            }
+            else {//and if SP is also visible
+                if (sprt_priority) {
+                    output_pixel = bkgr_pixel;
+                    output_attrb = bkgr_attrb;
+                }
+                else {
+                    output_pixel = sprt_pixel;
+                    output_attrb = sprt_attrb;
+                }
+
+                if (sprite_zero_hit_possible && sprite_zero_being_rendered) {
+                    if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {
+                        if (~(ppu_mask.bkgr_col_enable | ppu_mask.spr_col_enable)) {
+                            if (cycle >= 9 && cycle < 258)
+                                ppu_status.sprite_hit = 1;
+                        }
+                        else {
+                            ppu_status.sprite_hit = 1;
+                        }
+                    }
+                }
+            }
+        }
+
         //only need to set pixel within visible scanlines * background rendering cycles;
-        spr_screen.SetPixel(cycle - 1, scanline, get_color(bkgr_attrb, bkgr_pixel));
+        spr_screen.SetPixel(cycle - 1, scanline, get_color(output_attrb, output_pixel));
 
         return;
     }
@@ -414,6 +602,8 @@ namespace nes {
             addr_increment = ppu_ctrl.incr_mode ? 32 : 1;
             temp_addr.nt_sel_x = ppu_ctrl.nt_select & 0x1;
             temp_addr.nt_sel_y = (ppu_ctrl.nt_select & 0x2) >> 1;
+            //sprite size : 0: 8x8 pixels; 1: 8x16 pixels
+            sprite_size = ppu_ctrl.sprite_h ? 0x10 : 0x8;
             //"If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1), 
             // changing the NMI flag in bit 7 of $2000 from 0 to 1 will immediately generate an NMI."
             if (!ppu_ctrl.nmi_enable)
@@ -539,7 +729,7 @@ namespace nes {
         bkgr_shifter_attr_hi = (bkgr_shifter_attr_hi & 0xff00) | ((bkgr_next_attr & 0b10) ? 0xff : 0x0);
     }
 
-    inline void PPU::update_shifters(){
+    inline void PPU::update_bkgr_shifters(){
         //should only perform while ppu_mask.bkgr_enable == true;
         bkgr_shifter_patt_lo <<= 1;
         bkgr_shifter_patt_hi <<= 1;
@@ -547,14 +737,19 @@ namespace nes {
         bkgr_shifter_attr_hi <<= 1;
     }
 
-    // OAM *PPU::get_oam(){
-    //     return &oam;
-    // }
-    
-    // void PPU::oam_dma(PPU &_ppu, const Byte *_ram_ptr){
-    //     std::memcpy(reinterpret_cast<Byte*>(&_ppu.oam.ent[0]), _ram_ptr, 0x100);
-    //     return;
-    // }
+    inline void PPU::update_sprt_shifters() {
+        if (ppu_mask.spr_enable) {
+            for (Byte i = 0; i < sprt_num; ++i) {
+                if (sprt_x_counters[i] > 0) {
+                    --sprt_x_counters[i];
+                }
+                else {
+                    sprt_shifters_lo[i] <<= 1;
+                    sprt_shifters_hi[i] <<= 1;
+                }
+            }
+        }
+    }
 
     olc::Sprite& PPU::get_screen() {
         //for (Word nt_y = 0; nt_y < 30; ++nt_y) {
@@ -642,14 +837,9 @@ namespace nes {
     }
 
 
-    bool PPU::check_in_range(Byte n_scanl, Byte y_coord){
-        temp_word = n_scanl;
-        temp_word -= y_coord;
-        //check the ppu_ctrl reg to determine sprite height;
-        temp_byte = ppu_ctrl.sprite_h ? kSPR_HEIGHT_8 : kSPR_HEIGHT_16;
-        return (temp_word >= temp_byte) ? false : true;
-        //>= : signed minus or unsigned greater than;
-        //otherwise : within the range of sprite height;
+    inline bool PPU::check_in_range(Byte y_coord){
+        //sprite_size = 8 or 16;
+        return (y_coord <= scanline) && (y_coord + sprite_size > scanline);
     }
 
     inline bool PPU::check_render_enabled() {
@@ -682,9 +872,6 @@ namespace nes {
         frame = 0;
         scanline = 0;
         cycle = 0;
-        sprite_fetch_enable = false;
-        sprite_eval_enable = false;
-        sec_oam_clear = false;
 
         //"Clearing PPUSCROLL and PPUADDR corresponds to clearing the VRAM address latch(T) and the fine X scroll.
         //Note that the VRAM address itself(V) is not cleared."

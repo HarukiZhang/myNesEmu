@@ -34,7 +34,7 @@ private:
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\DonkeyKong.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Macross.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {

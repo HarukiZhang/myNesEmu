@@ -31,15 +31,17 @@ namespace nes {
     private:
         void fetch_bkgr_tile();
         void fetch_sprt_tile();
-        void fetch_tile();
+        //void fetch_tile();
         void render_pixel();
         void clear_sec_oam();
         void eval_sprite();
-        inline void load_bkgr_shifters();
-        inline void update_shifters();
+        void load_bkgr_shifters();
+        void update_bkgr_shifters();
+        void update_sprt_shifters();
         
-        bool check_in_range(Byte n_scanl, Byte y_coord);
+        bool check_in_range(Byte y_coord);
         Word get_bkgr_patt_addr();
+        Word get_sprt_addr();
         bool check_render_enabled();
     
         //micro operations:
@@ -56,7 +58,8 @@ namespace nes {
         void VISIBLES() {
             fetch_bkgr_tile();
             render_pixel();
-            update_shifters();
+            update_bkgr_shifters();
+            update_sprt_shifters();
         }
         void CLR_SOAM() {
             VISIBLES();
@@ -64,11 +67,17 @@ namespace nes {
         }
         void SPR_EVAL() {
             VISIBLES();
+            if (cycle == 65) sprite_zero_hit_possible = false;
             eval_sprite();
         }
         void INC_VERT() {
             SPR_EVAL();
             vram_addr.inc_vert();
+            //need to clear for every scanline;
+            eval_state = eval_idx = eval_off = 0;
+            sprt_num = soam_idx;
+            soam_idx = 0;
+            sprt_fetch_idx = 0;
         }
         void INC_VT_P() {
             PR_FETCH();
@@ -79,6 +88,7 @@ namespace nes {
         }
         void RST_HORI() {
             SP_FETCH();
+            update_sprt_shifters();
             vram_addr.reset_hori(temp_addr);
         }
         void RST_VERT() {
@@ -87,7 +97,7 @@ namespace nes {
         }
         void FT_FETCH() {
             fetch_bkgr_tile();
-            update_shifters();
+            update_bkgr_shifters();
         }
         void UD_FETCH() {
             switch (cycle & 0x7) {
@@ -124,15 +134,11 @@ namespace nes {
 
         olc::Pixel  pal_screen[0x40];//system palette
         olc::Sprite spr_screen{ 256, 240 };
-        //olc::Sprite sprNameTable[2] = { {256, 240}, {256, 240} };
         olc::Sprite spr_pattern_table[2] = { {128, 128}, {128, 128} };
         
         Counter frame = 0;
         Word scanline = 0;
         Word cycle = 0;
-        bool sprite_fetch_enable = false;
-        bool sprite_eval_enable = false;
-        bool sec_oam_clear = false;
         
         LOOPY_REG vram_addr;//current vram address;
         LOOPY_REG temp_addr;//temp vram addr, or as the address of the top left onscreen tile;
@@ -154,6 +160,32 @@ namespace nes {
         Word extract_mask = 0;
         Byte bkgr_pixel = 0;//low 2bits of pixel color index, choosing color byte within a palette;
         Byte bkgr_attrb = 0;//high 2btis, choosing from 4 palettes;
+
+        Byte soam_idx = 0;
+        Byte eval_idx = 0;
+        Byte eval_off = 0;
+        Byte eval_state = 0;
+        Byte eval_data = 0;
+
+        Byte sprite_size = 8;
+
+        Byte sprt_num = 0;
+        Word sprt_addr = 0;
+        Byte sprt_fetch_idx = 0;
+        Byte sprt_shifters_lo[8]{};
+        Byte sprt_shifters_hi[8]{};
+        Byte sprt_attr_latches[8]{};
+        Byte sprt_x_counters[8]{};
+
+        Byte sprt_pixel = 0;
+        Byte sprt_attrb = 0;
+        Byte sprt_priority = 0;
+
+        bool sprite_zero_hit_possible = false;
+        bool sprite_zero_being_rendered = false;
+
+        Byte output_pixel = 0;
+        Byte output_attrb = 0;
 
         //tempoary variable for internal use;
         Word temp_word = 0;
