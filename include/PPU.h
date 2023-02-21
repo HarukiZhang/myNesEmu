@@ -67,10 +67,11 @@ namespace nes {
         }
         void SPR_EVAL() {
             VISIBLES();
-            if (cycle == 65) sprite_zero_hit_possible = false;
+            if (cycle == 65) sp0_pres_nl = false;
             eval_sprite();
         }
         void INC_VERT() {
+            //cycle 256, the last visible cycle;
             SPR_EVAL();
             vram_addr.inc_vert();
             //need to clear for every scanline;
@@ -78,6 +79,7 @@ namespace nes {
             sprt_num = soam_idx;
             soam_idx = 0;
             sprt_fetch_idx = 0;
+            sp0_present = sp0_pres_nl;
         }
         void INC_VT_P() {
             PR_FETCH();
@@ -181,8 +183,9 @@ namespace nes {
         Byte sprt_attrb = 0;
         Byte sprt_priority = 0;
 
-        bool sprite_zero_hit_possible = false;
-        bool sprite_zero_being_rendered = false;
+        bool sp0_pres_nl = false;//check for the next line while evaluating sprites;
+        bool sp0_present = false;//indicate sp0 is present in current line;
+        bool sp0_being_rendered = false;
 
         Byte output_pixel = 0;
         Byte output_attrb = 0;

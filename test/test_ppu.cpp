@@ -34,7 +34,7 @@ private:
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Macross.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -127,7 +127,9 @@ private:
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
 		DrawSprite(kRIGHT_COL + 130, 5, &temp_spr, 1);
 
-		draw_oam(kRIGHT_COL, 160, 30);
+		if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
+		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < 54) ++oam_start_line;
+		draw_oam(kRIGHT_COL, 160, oam_start_line, 30);
 
 		return true;
 
@@ -151,10 +153,10 @@ private:
 		}
 		DrawRect((x + idx * (swatch_size * 5) - 1), y - 1, (4 * swatch_size), swatch_size);
 	}
-	void draw_oam(int x, int y, int nLines) {
-		DrawString(x, y, "POS      ID  VHP    PL");
-		for (int ent = 0; ent < nLines; ++ent) {
-			DrawString(x, (ent + 1) * 10 + y, ppu.get_obj_attr_ent(ent));
+	void draw_oam(int x, int y, int nStart, int nLines) {
+		DrawString(x, y, "#  POS      ID  VHP    PL");
+		for (int ent = nStart; (ent < (nStart + nLines)) && ent < 64; ++ent) {
+			DrawString(x, (ent - nStart + 1) * 10 + y, hex(ent,2) + " " + ppu.get_obj_attr_ent(ent));
 		}
 	}
 	void draw_cpu(int x, int y) {
@@ -215,6 +217,7 @@ private:
 	float fResidualTime = 0.0f;
 	size_t global_counter = 0;
 	uint8_t pal_sel = 0;
+	uint8_t oam_start_line = 0;
 
 	nes::CPU cpu;
 	nes::PPU ppu;

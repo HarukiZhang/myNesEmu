@@ -209,7 +209,7 @@ namespace nes {
 
                 if (check_in_range(eval_data)) {
                     //find that sprite#0 has been in range;
-                    if (eval_idx == 0) sprite_zero_hit_possible = true;//inform the next scanline;
+                    if (eval_idx == 0) sp0_pres_nl = true;//inform the next scanline;
         case 1:
                     eval_state = 1;
                     sec_oam.ent[soam_idx][eval_off & 0x3] = eval_data;
@@ -424,21 +424,21 @@ namespace nes {
             if (!sec_oam.ent[sprt_fetch_idx].flip_v) {
                 if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the top half;
                     return (((Word)r_oa.index & 0x1) << 12) 
-                        | (((Word)r_oa.index & 0x7e) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
+                        | (((Word)r_oa.index & 0xfe) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
                 }
                 else {//at bottom half;
                     return (((Word)r_oa.index & 0x1) << 12) 
-                        | ((((Word)r_oa.index & 0x7e) + 1) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
+                        | ((((Word)r_oa.index & 0xfe) + 1) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
                 }
             }
             else {
                 if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
                     return (((Word)r_oa.index & 0x1) << 12) 
-                        | ((((Word)r_oa.index & 0x7e) + 1) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
+                        | ((((Word)r_oa.index & 0xfe) + 1) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
                 }
                 else {//at bottom half;
                     return (((Word)r_oa.index & 0x1) << 12) 
-                        | (((Word)r_oa.index & 0x7e) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
+                        | (((Word)r_oa.index & 0xfe) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
                 }
             }
         }
@@ -481,7 +481,7 @@ namespace nes {
 
         if (ppu_mask.spr_enable) {
             sprt_pixel = sprt_attrb = 0;
-            sprite_zero_being_rendered = false;
+            sp0_being_rendered = false;
 
             for (Byte i = 0; i < sprt_num; ++i) {
                 if (sprt_x_counters[i] == 0) {
@@ -491,12 +491,21 @@ namespace nes {
                     sprt_priority = sprt_attr_latches[i] & 0x20;//0: in front of background; 1: behind background
                     if (sprt_pixel != 0) {//if the sprite is not transparent;
                         //although the first sprite in sec oam not necessary is sprite#0,
-                        //we could combine the status of bool sprite_zero_hit_possible
+                        //we could combine the status of bool sp0_pres_nl
                         //to judge whether it is;
-                        if (i == 0) sprite_zero_being_rendered = true;
+                        if (i == 0) sp0_being_rendered = true;
                         break;
                     }
                 }
+            }
+        }
+
+        if (cycle <= 8) {//visible left-most 8 pixels;
+            if (!ppu_mask.bkgr_col_enable) {
+                bkgr_pixel = 0;
+            }
+            if (!ppu_mask.spr_col_enable) {
+                sprt_pixel = 0;
             }
         }
 
@@ -533,14 +542,13 @@ namespace nes {
                     output_attrb = sprt_attrb;
                 }
 
-                if (sprite_zero_hit_possible && sprite_zero_being_rendered) {
-                    if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {
-                        if (~(ppu_mask.bkgr_col_enable | ppu_mask.spr_col_enable)) {
-                            if (cycle >= 9 && cycle < 258)
+                if (cycle < 255) {//not detect at x == 255;
+                    if (sp0_present && sp0_being_rendered) {
+                        if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {//only when both BG and SP are visible;
+                            if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
                                 ppu_status.sprite_hit = 1;
-                        }
-                        else {
-                            ppu_status.sprite_hit = 1;
+                            else if (cycle >= 9)
+                                ppu_status.sprite_hit = 1;
                         }
                     }
                 }
@@ -669,6 +677,8 @@ namespace nes {
         else {//$3F00 - $3FFF;  map to $3F00 - $3F1F; Palette;
             addr &= ((addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
             data = palette[addr];
+            //This is implemented as a bitwise AND with $30 on any value read from PPU $3F00-$3FFF, both on the display and through PPUDATA.
+            data &= ppu_mask.greyscale ? 0x30 : 0xff;
             return true;
             //Palette mapping:
             // 0000 0000
