@@ -25,6 +25,7 @@ public:
 	static constexpr int kRIGHT_COL = 518;
 	static constexpr int kSTATUS_BAR_X = 10;
 	static constexpr int kSTATUS_BAR_Y = 490;
+	static constexpr int kOAM_N_LINE = 30;
 
 	Demo() { sAppName = "myNesEmu_test_ppu"; }
 private:
@@ -32,9 +33,20 @@ private:
 		/*
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
+			SMB
+			10-YardFight
+			DonkeyKong3    X
+			DonkeyKongJr
+			DuckHunt       X
+			Excitebike
+			F1Race         X
+			KungFu         N
+			Millipede
+			Pac-Man        X
+			Pinball
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Pinball.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -71,7 +83,7 @@ private:
 		mbus.controller[0] |= GetKey(olc::Key::A).bHeld ? nes::Button::LEFT : 0x00;
 		mbus.controller[0] |= GetKey(olc::Key::D).bHeld ? nes::Button::RIGHT : 0x00;
 
-		if (GetKey(olc::Key::K1).bPressed) bEmulationRun = !bEmulationRun;
+		if (GetKey(olc::Key::SPACE).bPressed) bEmulationRun = !bEmulationRun;
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::R).bPressed) cpu.reset(true);//soft reset;
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::G).bPressed) bGridOn = !bGridOn;
@@ -84,15 +96,17 @@ private:
 			{
 				fResidualTime += (1.0f / 60.0f) - fElapsedTime;
 				do { 
-					mbus.clock(); 
+					mbus.clock();
 				} while (!ppu.frame_complete);
 				ppu.frame_complete = false;
 			}
 		}
 		else {
+			DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "Pause", olc::WHITE, 2);
 			// Emulate code step-by-step
 			if (GetKey(olc::Key::C).bPressed)
 			{
+				DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "By Step", olc::WHITE, 2);
 				// Clock enough times to execute a whole CPU instruction
 				do { mbus.clock(); } while (!cpu.complete());
 
@@ -104,6 +118,7 @@ private:
 			// Emulate one whole frame
 			if (GetKey(olc::Key::F).bPressed)
 			{
+				DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "By Frame", olc::WHITE, 2);
 				// Clock enough times to draw a single frame
 				do { mbus.clock(); } while (!ppu.frame_complete);
 				// Use residual clock cycles to complete current instruction
@@ -113,7 +128,12 @@ private:
 			}
 		}
 
-		DrawSprite(0, 0, &ppu.get_screen(), 2);
+		DrawSprite(0, 0, &ppu.get_screen(), 2);//composite;
+		//DrawSprite(256 + 2, 0, &ppu.get_bkgr(), 1);//only for check bkgr;
+
+		//Name Table:
+		//DrawSprite(0, 240 + 2, &ppu.get_name_table(0), 1);
+		//DrawSprite(256 + 2, 240 + 2, &ppu.get_name_table(1), 1);
 
 		if (bGridOn) draw_grid(0, 0);
 		//DrawCpu(kRIGHT_COL, 2);
@@ -122,14 +142,13 @@ private:
 		//Palette:
 		draw_palette(kRIGHT_COL, 140, pal_sel);
 
-		//NameTable:
-		olc::Sprite& temp_spr = ppu.get_pattern_table(1, pal_sel);
+		//Pattern Table:
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
-		DrawSprite(kRIGHT_COL + 130, 5, &temp_spr, 1);
+		DrawSprite(kRIGHT_COL + 130, 5, &ppu.get_pattern_table(1, pal_sel), 1);
 
 		if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
-		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < 54) ++oam_start_line;
-		draw_oam(kRIGHT_COL, 160, oam_start_line, 30);
+		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < (64 - kOAM_N_LINE)) ++oam_start_line;
+		draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
 
 		return true;
 

@@ -1,6 +1,6 @@
 #include "PPU.h"
 
-#define S_MODE
+//#define S_MODE
 
 namespace nes {
     
@@ -117,19 +117,27 @@ namespace nes {
                         fetch_bkgr_tile();
                     }
                     else if (cycle <= 320) {
-                        //Sprite Fetches;
+                        fetch_sprt_tile();
                     }
                     else if (cycle <= 336) {
                         fetch_bkgr_tile();
                     }
-                    //ignore last two unused NT fetches;
+                    else if (cycle == 337 || cycle == 339) {
+                        read(vram_addr.get_nt_addr(), bkgr_next_id);
+                    }
 
 
                     if (cycle == 1) {
                         ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
                         nmi_out = false;
+                        for (Byte i = 0; i < 8; ++i) {
+                            sprt_shifters_lo[i] = 0;
+                            sprt_shifters_hi[i] = 0;
+                            sprt_x_counters[i] = 0xff;
+                            sprt_attr_latches[i] = 0;
+                        }
                     }
-                    else if (cycle == 280 || cycle == 304) {
+                    else if (cycle >= 280 && cycle <= 304) {
                         vram_addr.reset_vert(temp_addr);
                         //why need transfer for so many cycles?
                     }
@@ -142,18 +150,22 @@ namespace nes {
                             clear_sec_oam();
                         }
                         else {
-                            //eval_sprite();
+                            if (cycle == 65) sp0_pres_nl = false;
+                            eval_sprite();
                         }
                         fetch_bkgr_tile();
                         render_pixel();
+                        update_sprt_shifters();
                     }
                     else if (cycle <= 320) {
-                        //Sprite Fetches;
+                        fetch_sprt_tile();
                     }
                     else if (cycle <= 336) {
                         fetch_bkgr_tile();
                     }
-                    //ignore last two unused NT fetches;
+                    else if (cycle == 337 || cycle == 339) {
+                        read(vram_addr.get_nt_addr(), bkgr_next_id);
+                    }
 
                 }
 
@@ -164,10 +176,29 @@ namespace nes {
                 else if (cycle == 337) load_bkgr_shifters();
                 
                 //addr operations:
-                if (cycle == 256)
-                    vram_addr.inc_vert();//visible rendering is complete here;
-                else if (cycle == 257)
+                if (cycle == 256) {//visible rendering is complete here;
+                    vram_addr.inc_vert();
+                    eval_state = eval_idx = eval_off = 0;
+                    sprt_num = soam_idx;
+                    soam_idx = 0;
+                    sprt_fetch_idx = 0;
+                    sp0_present = false;
+                    sp0_present = sp0_pres_nl;
+                    for (Byte i = 0; i < 8; ++i) {
+                        sprt_shifters_lo[i] = 0;
+                        sprt_shifters_hi[i] = 0;
+                        sprt_x_counters[i] = 0xff;
+                        sprt_attr_latches[i] = 0;
+                    }
+                }
+                else if (cycle == 257) {
+                    load_bkgr_shifters();
                     vram_addr.reset_hori(temp_addr);//reset nt_select bit for x-axis;
+                    if (scroll_updated_while_rendering) {
+                        scroll_updated_while_rendering = false;
+                        fine_x = temp_fine_x;
+                    }
+                }
             }
             //cycle == 0 : idle;
 #endif
@@ -197,9 +228,11 @@ namespace nes {
     }
 
     void PPU::eval_sprite() {
-#ifdef S_MODE
+        //evaluating sprites period has 3 * 64 = 192 cycles;
         if (eval_idx == 0x40) return;
         if ((cycle & 0x1) == 0) return;//even cycle no op;
+#ifdef S_MODE
+
         eval_data = oam.ent[eval_idx & 0x3f][eval_off & 0x3];
 
         switch (eval_state) {
@@ -247,12 +280,13 @@ namespace nes {
         }
 #else
 
-        //evaluating sprites period has 3 * 64 = 192 cycles;
-        if (eval_idx == 0x40) return;
         if (soam_idx < 8) {
+            sec_oam.ent[soam_idx][0] = oam.ent[eval_idx & 0x3f][0];
             if (check_in_range(oam.ent[eval_idx & 0x3f][0])) {
-                sec_oam.ent[soam_idx][0] = oam.ent[eval_idx & 0x3f][0];
-                for (++eval_off; eval_off < 4; ++eval_off) {
+
+                if (eval_idx == 0) sp0_pres_nl = true;//inform the next scanline;
+                
+                for (eval_off = 1; eval_off < 4; ++eval_off) {
                     sec_oam.ent[soam_idx][eval_off & 0x3] = oam.ent[eval_idx & 0x3f][eval_off & 0x3];
                 }
                 ++soam_idx;
@@ -265,7 +299,7 @@ namespace nes {
             //  and starts scanning OAM "diagonally", evaluating the tile number/attributes/X-coordinates of subsequent 
             //  OAM entries as Y-coordinates (due to incorrectly incrementing m when moving to the next sprite). 
             //  This results in inconsistent sprite overflow behavior showing both false positives and false negatives."
-            if (check_in_range(oam.ent[eval_idx][eval_off])) {
+            if (check_in_range(oam.ent[eval_idx & 0x3f][eval_off & 0x3])) {
                 ppu_status.sprite_overflow = 1;
             }
             else {
@@ -556,7 +590,12 @@ namespace nes {
         }
 
         //only need to set pixel within visible scanlines * background rendering cycles;
-        spr_screen.SetPixel(cycle - 1, scanline, get_color(output_attrb, output_pixel));
+        //Because visible field is (1,1) to (256, 240), so need to map it a little bit;
+        spr_screen.SetPixel(cycle - 1, scanline - 1, get_color(output_attrb, output_pixel));
+
+
+        //debug:
+        bkgr_screen.SetPixel(cycle - 1, scanline - 1, get_color(bkgr_attrb, bkgr_pixel));
 
         return;
     }
@@ -569,8 +608,6 @@ namespace nes {
         switch (addr & 0x7){
             //only reg#2, 4, 7 are readable;
         case 2 : //$2002 : PPU status reg;
-            //only try to:
-            ppu_status.vblank_flag = 1;
             //only upper 3 bits of ppu_status is effective;
             //lower 5 bits is the "noise" from ppu data buffer; actually it's PPU open bus;
             data = (ppu_status & 0xe0) | (ppu_data & 0x1f); //"Read PPUSTATUS: Return old status of NMI_occurred in bit 7,
@@ -609,7 +646,7 @@ namespace nes {
             ppu_ctrl = data;//"Write to PPUCTRL: Set NMI_output to bit 7." --nesdev;
             addr_increment = ppu_ctrl.incr_mode ? 32 : 1;
             temp_addr.nt_sel_x = ppu_ctrl.nt_select & 0x1;
-            temp_addr.nt_sel_y = (ppu_ctrl.nt_select & 0x2) >> 1;
+            temp_addr.nt_sel_y = (ppu_ctrl.nt_select & 0x2) > 0;
             //sprite size : 0: 8x8 pixels; 1: 8x16 pixels
             sprite_size = ppu_ctrl.sprite_h ? 0x10 : 0x8;
             //"If the PPU is currently in vertical blank, and the PPUSTATUS ($2002) vblank flag is still set (1), 
@@ -631,7 +668,13 @@ namespace nes {
         case 5 : //$2005 : screen scroll offset reg;
             ppu_scroll = data;
             if (is_first_write == 0){//toggle: 1 = after 1st write; 0 = after 2nd write / init;
-                fine_x = data & 0x7;//low 3 bits;
+                if (scanline <= 240 && cycle <= 256) {
+                    scroll_updated_while_rendering = true;
+                    temp_fine_x = data & 0x7;
+                }
+                else {
+                    fine_x = data & 0x7;//low 3 bits;
+                }
                 temp_addr.coarse_x = data >> 3;//high 5 bits;
             }
             else {
@@ -762,32 +805,38 @@ namespace nes {
     }
 
     olc::Sprite& PPU::get_screen() {
-        //for (Word nt_y = 0; nt_y < 30; ++nt_y) {
-        //    for (Word nt_x = 0; nt_x < 32; ++nt_x) {
-        //        Word nt_idx = nt_y * 32 + nt_x;//10 bit addr;
-        //        Word pt_id = vram[nt_idx];//within NT 1;
-        //        Word at_idx = (nt_y / 4) * 8 + (nt_x / 4);//6 bit addr;
-        //        Byte attr = vram[0x03C0 | at_idx];//within AT 1;
-        //
-        //        if ((nt_y & 0x3) > 1) attr >>= 4;
-        //        if ((nt_x & 0x3) > 1) attr >>= 2;
-        //        attr &= 0x3;
-        //
-        //        for (Byte row = 0; row < 8; ++row) {
-        //            Byte low_group = 0, high_group = 0;
-        //            Word pt_idx = 0x1000 | (pt_id << 4) | row;
-        //            mapper->ppu_read(pt_idx & 0xfff7, low_group);//read pattern table for specific tile;
-        //            mapper->ppu_read(pt_idx | 0x0008, high_group);
-        //            for (Byte col = 0; col < 8; ++col) {
-        //                Byte pixel = ((high_group & 0x1) << 1) | (low_group & 0x1);
-        //                low_group >>= 1;
-        //                high_group >>= 1;
-        //                spr_screen.SetPixel(nt_x * 8 + (7 - col), nt_y * 8 + row, get_color(attr, pixel));
-        //            }
-        //        }
-        //    }
-        //}
         return spr_screen;
+    }
+
+    olc::Sprite& PPU::get_bkgr() {
+        return bkgr_screen;
+    }
+
+    olc::Sprite& PPU::get_name_table(Word sel) {
+
+        for (Word nt_y = 0; nt_y < 30; ++nt_y) {
+            for (Word nt_x = 0; nt_x < 32; ++nt_x) {
+                Word nt_idx = vram[(sel << 10) | (nt_y * 32 + nt_x)];
+                Byte attrb = vram[(sel << 10) + (0x3C0 | (8 * (nt_y / 4) + (nt_x / 4)))];
+                if ((nt_y & 0x3) > 1) attrb >>= 4;
+                if ((nt_x & 0x3) > 1) attrb >>= 2;
+                attrb &= 0x3;
+                for (Byte row = 0; row < 8; ++row) {
+                    Byte low_group = 0, high_group = 0;
+                    Word pt_idx = ((Word)ppu_ctrl.bkgr_select << 12) | (nt_idx << 4) | row;
+                    mapper->ppu_read(pt_idx & 0xfff7, low_group);//read pattern table for specific tile;
+                    mapper->ppu_read(pt_idx | 0x0008, high_group);
+                    for (Byte col = 0; col < 8; ++col) {
+                        Byte pixel = ((high_group & 0x1) << 1) | (low_group & 0x1);
+                        low_group >>= 1;
+                        high_group >>= 1;
+                        nt_screen.SetPixel(nt_x * 8 + (7 - col), nt_y * 8 + row, get_color(attrb, pixel));
+                    }
+                }
+            }
+        }
+  
+        return nt_screen;
     }
 
     olc::Pixel& PPU::get_color(Byte palet, Byte pixel) {
@@ -845,7 +894,6 @@ namespace nes {
         str += bin(oam.ent[index][2] & 0x0f);
         return str;
     }
-
 
     inline bool PPU::check_in_range(Byte y_coord){
         //sprite_size = 8 or 16;

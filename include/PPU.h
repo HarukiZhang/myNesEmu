@@ -28,6 +28,10 @@ namespace nes {
         olc::Sprite& get_pattern_table(Byte tb_sel, Byte palette);
         std::string get_obj_attr_ent(Word index);
 
+        //debug:
+        olc::Sprite& get_bkgr();
+        olc::Sprite& get_name_table(Word sel);
+
     private:
         void fetch_bkgr_tile();
         void fetch_sprt_tile();
@@ -51,6 +55,13 @@ namespace nes {
             PR_FETCH();
             ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
             nmi_out = false;
+            //clear sprite rendering buffers;
+            for (Byte i = 0; i < 8; ++i) {
+                sprt_shifters_lo[i] = 0;
+                sprt_shifters_hi[i] = 0;
+                sprt_x_counters[i] = 0xff;
+                sprt_attr_latches[i] = 0;
+            }
         }
         void PR_FETCH() {
             fetch_bkgr_tile();
@@ -79,6 +90,7 @@ namespace nes {
             sprt_num = soam_idx;
             soam_idx = 0;
             sprt_fetch_idx = 0;
+            sp0_present = false;
             sp0_present = sp0_pres_nl;
         }
         void INC_VT_P() {
@@ -135,8 +147,10 @@ namespace nes {
         SEC_OAM sec_oam;
 
         olc::Pixel  pal_screen[0x40];//system palette
-        olc::Sprite spr_screen{ 256, 240 };
+        olc::Sprite spr_screen{ 256, 240 };//main composite screen;
         olc::Sprite spr_pattern_table[2] = { {128, 128}, {128, 128} };
+        olc::Sprite bkgr_screen{ 256, 240 };//only used for debugging, to check the background;
+        olc::Sprite nt_screen{ 256, 240 };//only used for debugging;
         
         Counter frame = 0;
         Word scanline = 0;
@@ -148,6 +162,9 @@ namespace nes {
         bool is_first_write = false;//toggle: 1 = after 1st write; 0 = after 2nd write / init;
         Byte addr_increment = 1;
         
+        Byte temp_fine_x = 0;
+        bool scroll_updated_while_rendering = false;
+
         Word bkgr_addr = 0;
         Byte bkgr_next_id = 0;
         Byte bkgr_next_attr = 0;
