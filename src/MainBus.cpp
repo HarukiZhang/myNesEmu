@@ -28,12 +28,15 @@ namespace nes {
 
     inline void MainBus::check_nmi() {
 #ifdef S_MODE
-        if (ppu->nmi_out) nmi_detected = true;
+        if (ppu->nmi_out) {
+            nmi_detected = true;
+            //ppu->nmi_out = false;
+        }
         else nmi_detected = false;
 #else
         if (ppu->nmi_out) {
             ppu->nmi_out = false;
-            cpu->nmi();
+            cpu->nmi_pending = true;
         }
 #endif
     }

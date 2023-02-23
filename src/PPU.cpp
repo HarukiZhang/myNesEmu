@@ -109,81 +109,12 @@ namespace nes {
                 else (this->*micop_mtx[1][cycle])();
             }
 #else
-            if (cycle > 0 && check_render_enabled()) {//non-idle cycles;
+            if (cycle > 0) {//non-idle cycles;
 
-                if (scanline == 0) {//pre-render scanline;
-                    //"Seconday OAM clear and Sprite evaluation do not occur on the pre-render scanline. Sprite fetches still do."
-                    if (cycle <= 256) {
-                        fetch_bkgr_tile();
-                    }
-                    else if (cycle <= 320) {
-                        fetch_sprt_tile();
-                    }
-                    else if (cycle <= 336) {
-                        fetch_bkgr_tile();
-                    }
-                    else if (cycle == 337 || cycle == 339) {
-                        read(vram_addr.get_nt_addr(), bkgr_next_id);
-                    }
-
-
-                    if (cycle == 1) {
-                        ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
-                        nmi_out = false;
-                        for (Byte i = 0; i < 8; ++i) {
-                            sprt_shifters_lo[i] = 0;
-                            sprt_shifters_hi[i] = 0;
-                            sprt_x_counters[i] = 0xff;
-                            sprt_attr_latches[i] = 0;
-                        }
-                    }
-                    else if (cycle >= 280 && cycle <= 304) {
-                        vram_addr.reset_vert(temp_addr);
-                        //why need transfer for so many cycles?
-                    }
-                    else if (cycle == 339) ++cycle;//skip odd frame idle cycle; <-- why dont judge parity of frame?
-                    //Note: skipping should only occur when rendering is enabled;
-                }
-                else {//scanline 1 ~ 240 : visible scanlines
-                    if (cycle <= 256) {
-                        if (cycle <= 64) {
-                            clear_sec_oam();
-                        }
-                        else {
-                            if (cycle == 65) sp0_pres_nl = false;
-                            eval_sprite();
-                        }
-                        fetch_bkgr_tile();
-                        render_pixel();
-                        update_sprt_shifters();
-                    }
-                    else if (cycle <= 320) {
-                        fetch_sprt_tile();
-                    }
-                    else if (cycle <= 336) {
-                        fetch_bkgr_tile();
-                    }
-                    else if (cycle == 337 || cycle == 339) {
-                        read(vram_addr.get_nt_addr(), bkgr_next_id);
-                    }
-
-                }
-
-                //both in visible and pre-render scanline shifters need to be updated;
-                //between cycle 258 - 320, it's harmless to do the update as well;
-                //beyond cycle 336, should not update;
-                if (cycle < 337) update_bkgr_shifters();
-                else if (cycle == 337) load_bkgr_shifters();
-                
-                //addr operations:
-                if (cycle == 256) {//visible rendering is complete here;
-                    vram_addr.inc_vert();
-                    eval_state = eval_idx = eval_off = 0;
-                    sprt_num = soam_idx;
-                    soam_idx = 0;
-                    sprt_fetch_idx = 0;
-                    sp0_present = false;
-                    sp0_present = sp0_pres_nl;
+                //no matter whether render enabled;
+                if (scanline == 0 && cycle == 1) {
+                    ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+                    nmi_out = false;
                     for (Byte i = 0; i < 8; ++i) {
                         sprt_shifters_lo[i] = 0;
                         sprt_shifters_hi[i] = 0;
@@ -191,14 +122,86 @@ namespace nes {
                         sprt_attr_latches[i] = 0;
                     }
                 }
-                else if (cycle == 257) {
-                    load_bkgr_shifters();
-                    vram_addr.reset_hori(temp_addr);//reset nt_select bit for x-axis;
-                    if (scroll_updated_while_rendering) {
-                        scroll_updated_while_rendering = false;
-                        fine_x = temp_fine_x;
+
+                if (check_render_enabled()) {
+                    if (scanline == 0) {//pre-render scanline;
+                    //"Seconday OAM clear and Sprite evaluation do not occur on the pre-render scanline. Sprite fetches still do."
+                        if (cycle <= 256) {
+                            fetch_bkgr_tile();
+                            update_bkgr_shifters();
+                        }
+                        else if (cycle <= 320) {
+                            fetch_sprt_tile();
+                            if (cycle >= 280 && cycle <= 304) {
+                                vram_addr.reset_vert(temp_addr);
+                            }
+                        }
+                        else if (cycle <= 336) {
+                            fetch_bkgr_tile();
+                            update_bkgr_shifters();
+                        }
+
+
+                    }
+                    else {//scanline 1 ~ 240 : visible scanlines
+                        if (cycle <= 256) {
+                            if (cycle <= 64) {
+                                clear_sec_oam();
+                            }
+                            else {
+                                if (cycle == 65) sp0_pres_nl = false;
+                                eval_sprite();
+                            }
+                            fetch_bkgr_tile();
+                            render_pixel();
+                            update_bkgr_shifters();
+                            update_sprt_shifters();
+                        }
+                        else if (cycle <= 320) {
+                            fetch_sprt_tile();
+                        }
+                        else if (cycle <= 336) {
+                            fetch_bkgr_tile();
+                            update_bkgr_shifters();
+                        }
+
+                    }
+
+                    //addr operations:
+                    if (cycle == 256) {//visible rendering is complete here;
+                        vram_addr.inc_vert();
+                        eval_state = eval_idx = eval_off = 0;
+                        sprt_num = soam_idx;
+                        soam_idx = 0;
+                        sprt_fetch_idx = 0;
+                        sp0_present = false;
+                        sp0_present = sp0_pres_nl;
+                        for (Byte i = 0; i < 8; ++i) {
+                            sprt_shifters_lo[i] = 0;
+                            sprt_shifters_hi[i] = 0;
+                            sprt_x_counters[i] = 0xff;
+                            sprt_attr_latches[i] = 0;
+                        }
+                    }
+                    else if (cycle == 257) {
+                        load_bkgr_shifters();
+                        vram_addr.reset_hori(temp_addr);//reset nt_select bit for x-axis;
+                        if (scroll_updated_while_rendering) {
+                            scroll_updated_while_rendering = false;
+                            fine_x = temp_fine_x;
+                        }
+                    }
+                    else if (cycle == 337) {
+                        load_bkgr_shifters();
+                        read(vram_addr.get_nt_addr(), bkgr_next_id);
+                    }
+                    else if (cycle == 339) {
+                        read(vram_addr.get_nt_addr(), bkgr_next_id);
+                        if (scanline == 0)
+                            ++cycle;
                     }
                 }
+
             }
             //cycle == 0 : idle;
 #endif

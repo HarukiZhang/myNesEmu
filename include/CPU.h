@@ -113,7 +113,6 @@ namespace nes {
 
         bool irq_pending = false;//internal signal for irq, which also indicates irq line is low at least starting one preceding cycle;
         bool irq_needed = false;
-
         bool nmi_pending = false;//internal signal for nmi;
         bool nmi_needed = false;
         bool prev_nmi_input = false;

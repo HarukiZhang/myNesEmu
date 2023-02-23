@@ -32,21 +32,23 @@ private:
 	bool OnUserCreate() override {
 		/*
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
-			D:\\haruk\\Projects\\nesEmu\\ROMs\\IceClimber.nes
-			SMB
-			10-YardFight
-			DonkeyKong3    X
-			DonkeyKongJr
-			DuckHunt       X
-			Excitebike
-			F1Race         X
-			KungFu         N
-			Millipede
-			Pac-Man        X
-			Pinball
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\ .nes
+			SMB             OK
+			IceClimber      OK
+			Macross         Glitch behind status bar;
+			10-YardFight    OK
+			DonkeyKong3     OK
+			DonkeyKongJr    OK
+			DuckHunt        No controller
+			Excitebike      OK
+			F1Race          Glitch on Route
+			KungFu          Separate field
+			Millipede       OK
+			Pac-Man         OK
+			Pinball         OK
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Pinball.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Pac-Man.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -128,16 +130,16 @@ private:
 			}
 		}
 
-		DrawSprite(0, 0, &ppu.get_screen(), 2);//composite;
+		DrawSprite(0, 0, &ppu.get_screen(), 1);//composite;
 		//DrawSprite(256 + 2, 0, &ppu.get_bkgr(), 1);//only for check bkgr;
 
 		//Name Table:
-		//DrawSprite(0, 240 + 2, &ppu.get_name_table(0), 1);
-		//DrawSprite(256 + 2, 240 + 2, &ppu.get_name_table(1), 1);
+		DrawSprite(0, 240 + 2, &ppu.get_name_table(0), 1);
+		DrawSprite(256 + 2, 240 + 2, &ppu.get_name_table(1), 1);
 
 		if (bGridOn) draw_grid(0, 0);
-		//DrawCpu(kRIGHT_COL, 2);
-		//DrawCode(kRIGHT_COL, 72, 16);
+		//draw_cpu(kRIGHT_COL, 160);
+		//draw_code(kRIGHT_COL, 232, 20);
 
 		//Palette:
 		draw_palette(kRIGHT_COL, 140, pal_sel);
@@ -146,6 +148,7 @@ private:
 		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
 		DrawSprite(kRIGHT_COL + 130, 5, &ppu.get_pattern_table(1, pal_sel), 1);
 
+		//OAM entries:
 		if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
 		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < (64 - kOAM_N_LINE)) ++oam_start_line;
 		draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
@@ -248,9 +251,6 @@ private:
 
 
 };
-
-TP t0, t1;
-SPAN span;
 
 Demo demo;
 

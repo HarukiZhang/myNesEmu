@@ -251,15 +251,20 @@ namespace nes {
             detect_interrupt();
 #else
             if (cycles == 0) {
-                fetch(PC++, cur_opcode);
-                P.U = 1;//always set unused bit 1;
-                cycles = base_cycle_mtx[cur_opcode];
-                temp_byte = (this->*addr_mode_mtx[cur_opcode])();
-                temp_byte = temp_byte & (this->*operation_mtx[cur_opcode])();
-                //additional cycles;
-                cycles += temp_byte;
-                P.U = 1;
-                ++instr_counter;
+                if (nmi_pending) {
+                    nmi_pending = false;
+                    nmi();
+                }
+                else {
+                    fetch(PC++, cur_opcode);
+                    P.U = 1;//always set unused bit 1;
+                    cycles = base_cycle_mtx[cur_opcode];
+                    Byte extra = (this->*addr_mode_mtx[cur_opcode])();
+                    extra = extra & (this->*operation_mtx[cur_opcode])();
+                    //additional cycles;
+                    cycles += extra;
+                    P.U = 1;
+                }
             }
 #endif
             cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;

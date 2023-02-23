@@ -18,7 +18,6 @@ using SCLK = std::chrono::steady_clock;
 nes::CPU cpu;
 nes::PPU ppu;
 nes::MainBus mbus;
-nes::HybridBus hbus;
 nes::Cartridge cart;
 std::shared_ptr<nes::Mapper> mapp;
 
@@ -61,8 +60,6 @@ inline bool initiate(const char* file_path){
 		return false;
 	}
 	mbus.connect(&cpu, &ppu, mapp);
-	hbus.connect(mapp);
-	ppu.connect(&hbus);
 	std::clog << "Mapper usecount : " << mapp.use_count() << std::endl;
 
 
@@ -209,7 +206,7 @@ inline void print_time() {
 */
 
 //only need to change here:
-#define file_name "16-special"
+#define file_name "15-brk"
 
 
 int main() {
@@ -218,16 +215,16 @@ int main() {
 	std::clog << std::endl;
 	std::clog << "============================================" << std::endl;
 	print_time();
-	std::clog << "Test: S_MODE instr_test-v5 " file_name << std::endl;
+	std::clog << "Test: instr_test-v5 " file_name << std::endl;
 
 	if (!initiate("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\instr_test-v5\\rom_singles\\" file_name ".nes"))
 		return 0;
 
 	//bool bTraceStop = false;
-	//t0 = SCLK::now();
+	t0 = SCLK::now();
 	while (true) {
 		if (main_step()) break;
-		//t1 = SCLK::now();
+		t1 = SCLK::now();
 		
 		//if (phase == PHASE::testRunning)
 		//	bTraceStop = log_trace();
@@ -236,7 +233,7 @@ int main() {
 		//	break;
 		//}
 
-		//print_ips();
+		print_ips();
 
 		//if (global_counter >= 0xfffff) {
 		//	std::clog << "Test stopped due to number of instruction limit ($"
