@@ -49,24 +49,32 @@ namespace nes {
         load_file(file_path);
     };
 
-    bool Cartridge::read_prg_rom(Word addr, Byte &data){
+    bool Cartridge::read_prg_rom(Phad addr, Byte &data){
         //need mapper to give an appropriate address
         //for bank shifting;
         data = prg_rom[addr];
         return true;
     }
 
-    bool Cartridge::read_chr_rom(Word addr, Byte &data){
+    bool Cartridge::read_chr_rom(Phad addr, Byte &data){
         data = chr_rom[addr];
         return true;
     }
 
-    bool Cartridge::read_prg_ram(Word addr, Byte &data){
+    bool Cartridge::write_chr_ram(Phad addr, Byte data) {
+        if (header.num_chr_rom == 0) {
+            chr_rom[addr] = data;
+            return true;
+        }
+        return false;
+    }
+
+    bool Cartridge::read_prg_ram(Phad addr, Byte &data){
         data = prg_ram[addr];
         return true;
     }
 
-    bool Cartridge::write_prg_ram(Word addr, Byte data){
+    bool Cartridge::write_prg_ram(Phad addr, Byte data){
         prg_ram[addr] = data;
         return true;
     }
@@ -98,11 +106,24 @@ namespace nes {
                 load_content(ifs, create_prg_ram);
                 ret = true;
                 break;
+            case Mapper_Type::UxROM:
+                struct stat statbuf;
+                stat(file_path, &statbuf);
+                if (statbuf.st_size > 0x40000) {
+                    std::clog << "Rom file loading is aborted due to : rom size is larger than 256 KiB." << std::endl;
+                    ret = false;
+                }
+                else {
+                    load_content(ifs, create_prg_ram);
+                    ret = true;
+                }
+                break;
             default:
                 std::clog << "Mapper " << mapper_num << " is not support now." << std::endl;
                 ret = false;
                 break;
             }
+
         }
         ifs.close();
         return ret;
@@ -141,6 +162,7 @@ namespace nes {
             {
                 // check size of rom file comparing to the info;
                 // 12bits addr should address max to 64MB (as 16KB for each bank)
+
                 //size_t info_rom_size = header.tailBytes[0] & 0xf; //tailBytes[0] = Byte 9;
                 //info_rom_size <<= 8;
                 //info_rom_size &= 0xf00;
@@ -192,6 +214,18 @@ namespace nes {
                     load_content(ifs);//set the prg_ram only when file indicates;
                     ret = true;
                     break;
+                case Mapper_Type::UxROM:
+                    struct stat statbuf;
+                    stat(file_path, &statbuf);
+                    if (statbuf.st_size > 0x40000) {
+                        std::clog << "Rom file loading is aborted due to : rom size is larger than 256 KiB." << std::endl;
+                        ret = false;
+                    }
+                    else {
+                        load_content(ifs);
+                        ret = true;
+                    }
+                    break;
                 default:
                     std::clog << "Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
                     ret = false;
@@ -216,7 +250,37 @@ namespace nes {
         return ret;
     }
 
-    void Cartridge::print_info_v_iNES(){
+    void Cartridge::load_content(std::ifstream& ifs, bool create_ram){
+        if (header.trainer) {//if has trainer within rom file;
+            //just ignore the trainer;
+            ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
+            std::clog << "The trainer has been ignored." << std::endl;
+        }
+
+        if (size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom) {//Attention: size could be 0;
+            prg_rom.resize(size_prg_rom);
+            ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
+        }
+
+        if (size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom) {
+            chr_rom.resize(size_chr_rom);
+            ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
+        }
+        else {//if header byte 5 == 0, the borad uses CHR-RAM;
+            //by default, allocate 8 KiB for the CHR-RAM;
+            chr_rom.resize(kPRG_RAM_SIZE);
+            chr_rom.clear();
+        }
+
+        if (header.save_ram || create_ram) {
+            //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
+            prg_ram.resize(kPRG_RAM_SIZE);
+            std::clog << "PRG-RAM is prepared." << std::endl;
+            if (create_ram) header.save_ram = 1;//to inform mapper;
+        }
+    }
+
+    void Cartridge::print_info_v_iNES() {
         std::clog << "16KB PRG-ROM banks  : "
             << static_cast<int>(header.num_prg_rom) << std::endl;
         std::clog << "8 KB CHR-ROM banks  : "
@@ -241,31 +305,6 @@ namespace nes {
         // else std::clog << "N" << std::endl;
         std::clog << std::endl;
         std::clog << "iNES header info reading complete." << std::endl;
-    }
-
-    void Cartridge::load_content(std::ifstream& ifs, bool create_ram){
-        if (header.trainer) {//if has trainer within rom file;
-            //just ignore the trainer;
-            ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
-            std::clog << "The trainer has been ignored." << std::endl;
-        }
-
-        if (size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom) {//Attention: size could be 0;
-            prg_rom.resize(size_prg_rom);
-            ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
-        }
-
-        if (size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom) {
-            chr_rom.resize(size_chr_rom);
-            ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
-        }
-
-        if (header.save_ram || create_ram) {
-            //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
-            prg_ram.resize(kPRG_RAM_SIZE);
-            std::clog << "PRG-RAM is prepared." << std::endl;
-            if (create_ram) header.save_ram = 1;//to inform mapper;
-        }
     }
 
 };//end nes

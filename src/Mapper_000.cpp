@@ -1,9 +1,9 @@
-#include "Mapper_NROM.h"
+#include "Mapper_000.h"
 #include "Cartridge.h"
 
 namespace nes {
 
-    Mapper_NROM::Mapper_NROM(Cartridge &_cart)
+    Mapper_000::Mapper_000(Cartridge &_cart)
         : Mapper{_cart}
     {
         const NESHeader &cr_h = _cart.get_header();
@@ -17,11 +17,15 @@ namespace nes {
             &Mapper::mirror_vertical : &Mapper::mirror_horizontal;
     }
 
-    Mapper_NROM::~Mapper_NROM(){
+    Mapper_000::~Mapper_000(){
         //trivial: nothing to release;
     }
 
-    bool Mapper_NROM::cpu_read(Word addr, Byte &data){
+    void Mapper_000::reset() {
+        //nothing to do;
+    }
+
+    bool Mapper_000::cpu_read(Word addr, Byte &data){
         //MainBus wont give addresses below $6000;
         if (addr < 0x8000){
             // 0110 0000 0000 0000 - 0111 1111 1111 1111
@@ -41,7 +45,7 @@ namespace nes {
         return false;
     }
 
-    bool Mapper_NROM::cpu_write(Word addr, Byte data){
+    bool Mapper_000::cpu_write(Word addr, Byte data){
         //MainBus wont give addresses below $6000;
         if (addr < 0x8000){
             if (has_prg_ram)
@@ -52,11 +56,13 @@ namespace nes {
         return false;
     }
 
-    bool Mapper_NROM::ppu_read(Word addr, Byte &data){
+    bool Mapper_000::ppu_read(Word addr, Byte &data){
         //HybridBus only gives addr below 0x2000;
-        return Mapper::cart->read_chr_rom(addr, data);
+        if (Mapper::cart->get_header().num_chr_rom)
+            return Mapper::cart->read_chr_rom(addr, data);
+        else return false;
     }
-    bool Mapper_NROM::ppu_write(Word addr, Byte data){
+    bool Mapper_000::ppu_write(Word addr, Byte data){
         //CHR-ROM is not writable;
         return false;
     }

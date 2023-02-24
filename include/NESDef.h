@@ -5,6 +5,7 @@
 
 namespace nes {
 
+	using Phad = std::uint32_t;//used for physical address;
 	using Word = std::uint16_t;
 	using Byte = std::uint8_t;
 	using Counter = signed long long; //counter should prevent decrementing from 0 to a huge number;
@@ -405,8 +406,8 @@ namespace nes {
 
 	struct NESHeader {
 		char NES1A[4];           //Btye 0-3
-		Byte num_prg_rom;        //Btye 4
-		Byte num_chr_rom;        //Byte 5
+		Byte num_prg_rom;        //Btye 4 : Size of PRG ROM in 16 KB units;
+		Byte num_chr_rom;        //Byte 5 : Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
 		//Byte 6:            <-    Byte 6
 		Byte mirror_hv : 1;      //0:horizontal; 1:vertical;
 		Byte save_ram : 1;       //Cartridge contains battery-backed PRG RAM ($6000-7FFF) 
@@ -428,7 +429,7 @@ namespace nes {
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}
 		Byte n_mapper() const {
-			return static_cast<Byte>((n_mapper_high << 4) | n_mapper_low);
+			return static_cast<Byte>(((Word)n_mapper_high << 4) | n_mapper_low);
 		}
 	};
 

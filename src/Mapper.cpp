@@ -2,7 +2,8 @@
 
 #include "Mapper.h"
 
-#include "Mapper_NROM.h"
+#include "Mapper_000.h"
+#include "Mapper_002.h"
 
 namespace nes {
 
@@ -11,10 +12,13 @@ namespace nes {
     std::shared_ptr<Mapper> Mapper::create_mapper(Cartridge &r_cart){
         switch ( r_cart.get_header().n_mapper() ){
         case Mapper_Type::NROM :
-            return std::make_shared<Mapper_NROM>(r_cart);
+            return std::make_shared<Mapper_000>(r_cart);
+            break;
+        case Mapper_Type::UxROM :
+            return std::make_shared<Mapper_002>(r_cart);
             break;
         default :
-            std::cerr << "Mapper other than 000 is not support now" << std::endl;
+            std::cerr << "Mapper other than 000, 002 is not support now" << std::endl;
             return nullptr;
             break;
         }

@@ -53,7 +53,7 @@ private:
 			Pinball         OK
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Xevious.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Contra.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {

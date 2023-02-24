@@ -15,10 +15,11 @@ namespace nes {
 
         bool load_file(const char* file_path);
 
-        bool read_prg_rom(Word addr, Byte &data);
-        bool read_chr_rom(Word addr, Byte &data);
-        bool read_prg_ram(Word addr, Byte &data);
-        bool write_prg_ram(Word addr, Byte data);
+        bool read_prg_rom(Phad addr, Byte &data);
+        bool read_chr_rom(Phad addr, Byte &data);
+        bool write_chr_ram(Phad addr, Byte data);
+        bool read_prg_ram(Phad addr, Byte &data);
+        bool write_prg_ram(Phad addr, Byte data);
 
         const NESHeader &get_header();
 
@@ -40,7 +41,7 @@ namespace nes {
         size_t size_prg_rom = 0;
         size_t size_chr_rom = 0;
         std::vector<Byte> prg_rom;
-        std::vector<Byte> chr_rom;
+        std::vector<Byte> chr_rom;//if header byte 5 == 0, it's chr-ram;
         std::vector<Byte> prg_ram;
     };
 

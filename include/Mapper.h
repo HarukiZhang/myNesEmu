@@ -12,6 +12,8 @@ namespace nes {
         Mapper(Cartridge &_cart);
         virtual ~Mapper() = default;
 
+        virtual void reset() = 0;
+
         virtual bool cpu_read(Word addr, Byte &data) = 0;
         virtual bool cpu_write(Word addr, Byte data) = 0;
 
