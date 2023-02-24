@@ -1,6 +1,6 @@
 #include "PPU.h"
 
-//#define S_MODE
+#define S_MODE
 
 namespace nes {
     
@@ -104,9 +104,14 @@ namespace nes {
 
         if (scanline < 241) {//scanlines that need to fetch;
 #ifdef S_MODE
-            if (check_render_enabled()) {
-                if (scanline == 0) (this->*micop_mtx[0][cycle])();
-                else (this->*micop_mtx[1][cycle])();
+            Byte opcode = 0;
+            if (scanline == 0) {
+                opcode = opcode_mtx[0][cycle];
+                (this->*micop_mtx[opcode])();
+            }
+            else {
+                opcode = opcode_mtx[1][cycle];
+                (this->*micop_mtx[opcode])();
             }
 #else
             if (cycle > 0) {//non-idle cycles;
@@ -402,6 +407,59 @@ namespace nes {
         }
     }
 
+    void PPU::fetch_nt_tile(){
+        read(vram_addr.get_nt_addr(), bkgr_next_id);
+    }
+    void PPU::fetch_at_tile(){
+        read(vram_addr.get_at_addr(), bkgr_next_attr);
+        //choose square from 4;
+        if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
+        if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
+        bkgr_next_attr &= 0x3;
+    }
+    void PPU::fetch_bg_tile(){
+        if (!fetch_toggle) {
+            bkgr_addr = get_bkgr_patt_addr();
+            read(bkgr_addr, bkgr_next_lsb);
+        }
+        else {
+            bkgr_addr |= 0x0008;//set plane bit to access high byte;
+            read(bkgr_addr, bkgr_next_msb);
+        }
+        fetch_toggle = !fetch_toggle;
+    }
+    void PPU::fetch_sp_tile(){
+        auto flip_hori = [](Byte b) {
+            b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
+            b = (b & 0xcc) >> 2 | (b & 0x33) << 2;
+            b = (b & 0xaa) >> 1 | (b & 0x55) << 1;
+            return b;
+        };
+
+        if (sprt_fetch_idx < sprt_num) {
+            if (!fetch_toggle) {
+                sprt_addr = get_sprt_addr();
+                read(sprt_addr, sprt_shifters_lo[sprt_fetch_idx]);
+                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+                    sprt_shifters_lo[sprt_fetch_idx] = flip_hori(sprt_shifters_lo[sprt_fetch_idx]);
+                }
+                //copy x_coord to x_counter;
+                sprt_x_counters[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx].x_coord;
+            }
+            else {
+                sprt_addr |= 0x0008;
+                read(sprt_addr, sprt_shifters_hi[sprt_fetch_idx]);
+                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+                    sprt_shifters_hi[sprt_fetch_idx] = flip_hori(sprt_shifters_hi[sprt_fetch_idx]);
+                }
+                //copy attribute byte to sprt_attr_latches;
+                sprt_attr_latches[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx][2];
+                ++sprt_fetch_idx;
+            }
+            fetch_toggle = !fetch_toggle;
+        }
+    }
+
     void PPU::fetch_sprt_tile() {
         auto flip_hori = [](Byte b) {
             b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
@@ -661,6 +719,7 @@ namespace nes {
             break;
         case 1 : //$2001 : PPU mask;
             ppu_mask = data;
+            greyscale_mask = ppu_mask.greyscale ? 0x30 : 0xff;
             break;
         case 3 : //$2003 : OAM address reg;
             oam_addr = data;
@@ -712,54 +771,54 @@ namespace nes {
     }
 
     inline bool PPU::read(Word addr, Byte &data){
-        if (addr < 0x2000) {//$0000 - $1FFF : Pattern Table;
-            return mapper->ppu_read(addr, data);
+        if (addr >= 0x3F00) {//$3F00 - $3FFF;  map to $3F00 - $3F1F; Palette;
+            addr &= ((addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
+            data = palette[addr];
+            //This is implemented as a bitwise AND with $30 on any value read from PPU $3F00-$3FFF, both on the display and through PPUDATA.
+            data &= greyscale_mask;
+            return true;
         }
-        else if (addr < 0x3F00) {//$2000 - $3EFF : Name Table / Attribute Table;
+        else if (addr >= 0x2000) {//$2000 - $3EFF : Name Table / Attribute Table;
             //map $3XXX to $2XXX;
             data = vram[mapper->get_nt_mirror(addr & 0x2fff)];
             return true;
         }
-        else {//$3F00 - $3FFF;  map to $3F00 - $3F1F; Palette;
-            addr &= ((addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
-            data = palette[addr];
-            //This is implemented as a bitwise AND with $30 on any value read from PPU $3F00-$3FFF, both on the display and through PPUDATA.
-            data &= ppu_mask.greyscale ? 0x30 : 0xff;
-            return true;
-            //Palette mapping:
-            // 0000 0000
-            // 0000 0001
-            // 0000 0010
-            // 0000 0011
-            // 0000 0100
-            // 0000 0101
-            // 0000 0110
-            // 0000 0111
-            // 0000 1000
-            // 0000 1001
-            // 0000 1010
-            // 0000 1011
-            // 0000 1100
-            // 0000 1101
-            // 0000 1110
-            // 0000 1111
-            // 0001 0000 --> 0000 0000
-            // 0001 0001
-            // 0001 0010
-            // 0001 0011
-            // 0001 0100 --> 0000 0100
-            // 0001 0101
-            // 0001 0110
-            // 0001 0111
-            // 0001 1000 --> 0000 1000
-            // 0001 1001
-            // 0001 1010
-            // 0001 1011
-            // 0001 1100 --> 0000 1100
-            // 0001 1101
-            // 0001 1110
-            // 0001 1111
+        else {//$0000 - $1FFF : Pattern Table;
+            return mapper->ppu_read(addr, data);
         }
+        //Palette mapping:
+        // 0000 0000
+        // 0000 0001
+        // 0000 0010
+        // 0000 0011
+        // 0000 0100
+        // 0000 0101
+        // 0000 0110
+        // 0000 0111
+        // 0000 1000
+        // 0000 1001
+        // 0000 1010
+        // 0000 1011
+        // 0000 1100
+        // 0000 1101
+        // 0000 1110
+        // 0000 1111
+        // 0001 0000 --> 0000 0000
+        // 0001 0001
+        // 0001 0010
+        // 0001 0011
+        // 0001 0100 --> 0000 0100
+        // 0001 0101
+        // 0001 0110
+        // 0001 0111
+        // 0001 1000 --> 0000 1000
+        // 0001 1001
+        // 0001 1010
+        // 0001 1011
+        // 0001 1100 --> 0000 1100
+        // 0001 1101
+        // 0001 1110
+        // 0001 1111
     }
 
     inline bool PPU::write(Word addr, Byte data){
@@ -843,8 +902,8 @@ namespace nes {
     }
 
     olc::Pixel& PPU::get_color(Byte palet, Byte pixel) {
-        read(kPALETTE_BASE | (palet << 2) | pixel, temp_byte);
-        return pal_screen[temp_byte & 0x3f];
+        read(kPALETTE_BASE | (palet << 2) | pixel, palet_idx);
+        return pal_screen[palet_idx & 0x3f];
     }
 
     olc::Sprite& PPU::get_pattern_table(Byte tb_sel, Byte palette) {
@@ -940,24 +999,74 @@ namespace nes {
         temp_addr.val = 0;
         fine_x = 0;
         is_first_write = false;
+        addr_increment = 1;               // <-- reset to general 1;
+        temp_fine_x = 0;
+        scroll_updated_while_rendering = false;
 
+        //internal variable for tile fetch;
         bkgr_addr = 0;
         bkgr_next_id = 0;
         bkgr_next_attr = 0;
         bkgr_next_lsb = 0;
         bkgr_next_msb = 0;
 
+        //background shifters;
         bkgr_shifter_patt_lo = 0;
         bkgr_shifter_patt_hi = 0;
         bkgr_shifter_attr_lo = 0;
         bkgr_shifter_attr_hi = 0;
 
+        //background render buffers;
         extract_mask = 0;
-        bkgr_pixel = 0;
-        bkgr_attrb = 0;
+        bkgr_pixel = 0;//low 2bits of pixel color index, choosing color byte within a palette;
+        bkgr_attrb = 0;//high 2btis, choosing from 4 palettes;
 
-        temp_word = 0;
-        temp_byte = 0;
+        //internal variable for evaluating sprite;
+        soam_idx = 0;
+        eval_idx = 0;
+        eval_off = 0;
+        eval_state = 0;
+        eval_data = 0;
+
+        //internal variables for sprite fetch;
+        sprt_num = 0;
+        sprt_addr = 0;
+        sprt_fetch_idx = 0;
+        for (Byte i = 0; i < 8; ++i) {
+            sprt_shifters_lo[i] = 0;
+            sprt_shifters_hi[i] = 0;
+            sprt_attr_latches[i] = 0;
+            sprt_x_counters[i] = 0;
+        }
+
+        //sprite render buffers;
+        sprt_pixel = 0;
+        sprt_attrb = 0;
+        sprt_priority = 0;
+
+        //internal state register;
+        sprite_size = 8;             //generally it's a 8*8 sprite;
+        greyscale_mask = 0xff;       //generally do not mask;
+        nmi_out = false;//active low signal outputted from PPU, can be seen by bus and CPU;
+        frame_complete = false;
+        //toggles for sprite0hit;
+        sp0_pres_nl = false;//check for the next line while evaluating sprites;
+        sp0_present = false;//indicate sp0 is present in current line;
+        sp0_being_rendered = false;
+
+        //internal variables for rendering;
+        palet_idx = 0;
+        output_pixel = 0;
+        output_attrb = 0;
+
+
+    }
+
+    bool PPU::is_frame_complete()
+    {
+        bool ret = frame_complete;
+        frame_complete = false;
+        return ret;
     }
 
 };//end nes;

@@ -19,12 +19,16 @@ using SPAN = std::chrono::duration<double>;
 using TP = std::chrono::steady_clock::time_point;
 using SCLK = std::chrono::steady_clock;
 
+TP t0, t1;
+SPAN span;
+size_t frame_counter = 0;
+double frame_sum = 0;
 
 class Demo : public olc::PixelGameEngine {
 public:
 	static constexpr int kRIGHT_COL = 518;
 	static constexpr int kSTATUS_BAR_X = 10;
-	static constexpr int kSTATUS_BAR_Y = 490;
+	static constexpr int kSTATUS_BAR_Y = 730;
 	static constexpr int kOAM_N_LINE = 30;
 
 	Demo() { sAppName = "myNesEmu_test_ppu"; }
@@ -36,6 +40,7 @@ private:
 			SMB             OK
 			IceClimber      OK
 			Macross         Glitch behind status bar;
+			Xevious
 			10-YardFight    OK
 			DonkeyKong3     OK
 			DonkeyKongJr    OK
@@ -48,7 +53,7 @@ private:
 			Pinball         OK
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Pac-Man.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Xevious.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -99,8 +104,8 @@ private:
 				fResidualTime += (1.0f / 60.0f) - fElapsedTime;
 				do { 
 					mbus.clock();
-				} while (!ppu.frame_complete);
-				ppu.frame_complete = false;
+				} while (!ppu.is_frame_complete());
+				//clear fram_complete flag built-in;
 			}
 		}
 		else {
@@ -122,20 +127,18 @@ private:
 			{
 				DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "By Frame", olc::WHITE, 2);
 				// Clock enough times to draw a single frame
-				do { mbus.clock(); } while (!ppu.frame_complete);
+				do { mbus.clock(); } while (!ppu.is_frame_complete());//reset frame_complete built-in;
 				// Use residual clock cycles to complete current instruction
 				do { mbus.clock(); } while (!cpu.complete());
-				// Reset frame completion flag
-				ppu.frame_complete = false;
 			}
 		}
 
-		DrawSprite(0, 0, &ppu.get_screen(), 1);//composite;
+		DrawSprite(0, 0, &ppu.get_screen(), 2);//composite;
 		//DrawSprite(256 + 2, 0, &ppu.get_bkgr(), 1);//only for check bkgr;
 
 		//Name Table:
-		DrawSprite(0, 240 + 2, &ppu.get_name_table(0), 1);
-		DrawSprite(256 + 2, 240 + 2, &ppu.get_name_table(1), 1);
+		DrawSprite(0, 480 + 2, &ppu.get_name_table(0), 1);
+		DrawSprite(256 + 2, 480 + 2, &ppu.get_name_table(1), 1);
 
 		if (bGridOn) draw_grid(0, 0);
 		//draw_cpu(kRIGHT_COL, 160);
@@ -152,6 +155,23 @@ private:
 		if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
 		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < (64 - kOAM_N_LINE)) ++oam_start_line;
 		draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
+
+		//FPS:
+		++frame_counter;
+		std::string frame_str{ "Frames  : " };
+		DrawString(630, kSTATUS_BAR_Y - 20, frame_str + std::to_string(frame_counter));
+		t1 = SCLK::now();
+		span = std::chrono::duration_cast<SPAN>(t1 - t0);
+		frame_str.clear();
+		frame_str = "FPS     : ";
+		double cur_frame = 1.0 / span.count();
+		frame_sum += cur_frame;
+		frame_str += std::to_string(static_cast<int>(cur_frame));
+		DrawString(630, kSTATUS_BAR_Y - 10, frame_str);
+		frame_str.clear();
+		frame_str = "Mean FPS: ";
+		DrawString(630, kSTATUS_BAR_Y, frame_str + std::to_string(frame_sum / frame_counter));
+		t0 = t1;
 
 		return true;
 
@@ -256,8 +276,8 @@ Demo demo;
 
 
 int main() {
-
-	demo.Construct(780, 520, 1, 1);
+	t0 = SCLK::now();
+	demo.Construct(780, 780, 1, 1);
 	demo.Start();
 
 	return 0;
