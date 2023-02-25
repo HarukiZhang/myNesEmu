@@ -62,11 +62,10 @@ namespace nes {
     }
 
     bool Cartridge::write_chr_ram(Phad addr, Byte data) {
-        if (header.num_chr_rom == 0) {
-            chr_rom[addr] = data;
-            return true;
-        }
-        return false;
+        //header byte 5 == 0 indicates the board uses CHR-RAM;
+        //whether to write to ram should be decided by Mapper;
+        chr_rom[addr] = data;
+        return true;
     }
 
     bool Cartridge::read_prg_ram(Phad addr, Byte &data){
@@ -136,19 +135,28 @@ namespace nes {
             return false;
         }
 
-        bool ret = false;
+        bool proceed = true;
 
-        ifs.read(reinterpret_cast<char*>(&header), kNES_HEAD_SIZE);
-        // verify header magic word;
-        if (header.NES1A[0] != 'N'
-            || header.NES1A[1] != 'E'
-            || header.NES1A[2] != 'S'
-            || header.NES1A[3] != 0x1A  )
-        {
-            printf("This is not an iNES file.\n");
-            ret = false;
+        struct stat statbuf;
+        stat(file_path, &statbuf);
+
+        //loading of rom that is bigger than 1 MiB will be aborted;
+        if (statbuf.st_size > 0x100000) {
+            std::clog << "Rom file loading is aborted due to : rom size is larger than 1 MiB." << std::endl;
+            proceed = false;
         }
-        else {
+
+        // verify header magic word;
+        if (proceed) {
+            ifs.read(reinterpret_cast<char*>(&header), kNES_HEAD_SIZE);
+            if (header.NES1A[0] != 'N' || header.NES1A[1] != 'E' || header.NES1A[2] != 'S' || header.NES1A[3] != 0x1A) {
+                printf("This is not an iNES file.\n");
+                proceed = false;
+            }
+        }
+
+        // check file format;
+        if (proceed) {
 
             // Recommended detection procedure for distinguish format version:
             //      If byte 7 AND $0C = $08, and the size taking into account byte 9 
@@ -177,7 +185,7 @@ namespace nes {
                 /* Read info according to NES 2.0 standard */
                 std::clog << "NES 2.0 format is on the work." << std::endl;
 
-                ret = false;
+                proceed = false;
             }
             break;
             case NES_VER::archaic_iNES :
@@ -186,7 +194,7 @@ namespace nes {
                 /* Read info according to archaic iNES standard */
                 std::clog << "Archaic iNES format is on the work." << std::endl;
                 
-                ret = false;
+                proceed = false;
             }
             break;
             case NES_VER::iNES_1_0 :
@@ -208,29 +216,7 @@ namespace nes {
 
                 print_info_v_iNES();
 
-                //check mapper for how to load rom content;
-                switch (header.n_mapper()) {
-                case Mapper_Type::NROM:
-                    load_content(ifs);//set the prg_ram only when file indicates;
-                    ret = true;
-                    break;
-                case Mapper_Type::UxROM:
-                    struct stat statbuf;
-                    stat(file_path, &statbuf);
-                    if (statbuf.st_size > 0x40000) {
-                        std::clog << "Rom file loading is aborted due to : rom size is larger than 256 KiB." << std::endl;
-                        ret = false;
-                    }
-                    else {
-                        load_content(ifs);
-                        ret = true;
-                    }
-                    break;
-                default:
-                    std::clog << "Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
-                    ret = false;
-                    break;
-                }
+                proceed = true;
 
             }
             break;
@@ -240,14 +226,46 @@ namespace nes {
                 /* Read info according to archaic iNES standard */
                 std::clog << "Archaic iNES / iNES 0.7 format is on the work." << std::endl;
                 
-                ret = false;
+                proceed = false;
             }
             break;
             }
         }
 
+        //make sure that num_prg_rom is not 0;
+        if (proceed) {
+            if (header.num_prg_rom == 0) {
+                std::clog << "Loading of rom is aborted : num_prg_rom == 0" << std::endl;
+                proceed = false;
+            }
+        }
+
+        //check mapper and load rom content;
+        if (proceed) {
+            switch (header.n_mapper()) {
+            case Mapper_Type::NROM:
+                load_content(ifs);//set the prg_ram only when file indicates;
+                proceed = true;
+                break;
+            case Mapper_Type::UxROM:
+                if (header.num_prg_rom > 16) {
+                    std::clog << "Mapper 002 mapping do not support PRG-ROM larger than 256 KiB now." << std::endl;
+                    proceed = false;
+                }
+                else {
+                    load_content(ifs);
+                    proceed = true;
+                }
+                break;
+            default:
+                std::clog << "Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
+                proceed = false;
+                break;
+            }
+        }
+
         ifs.close();
-        return ret;
+        return proceed;
     }
 
     void Cartridge::load_content(std::ifstream& ifs, bool create_ram){
@@ -268,8 +286,7 @@ namespace nes {
         }
         else {//if header byte 5 == 0, the borad uses CHR-RAM;
             //by default, allocate 8 KiB for the CHR-RAM;
-            chr_rom.resize(kPRG_RAM_SIZE);
-            chr_rom.clear();
+            chr_rom.resize(kPRG_RAM_SIZE, 0);
         }
 
         if (header.save_ram || create_ram) {

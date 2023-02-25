@@ -28,6 +28,7 @@ class Demo : public olc::PixelGameEngine {
 public:
 	static constexpr int kRIGHT_COL = 518;
 	static constexpr int kSTATUS_BAR_X = 10;
+	static constexpr int kFPS_BAR_X = 600;
 	static constexpr int kSTATUS_BAR_Y = 730;
 	static constexpr int kOAM_N_LINE = 30;
 
@@ -36,7 +37,9 @@ private:
 	bool OnUserCreate() override {
 		/*
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
-			D:\\haruk\\Projects\\nesEmu\\ROMs\\ .nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\01.basics.nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\SMB.nes
+
 			SMB             OK
 			IceClimber      OK
 			Macross         Glitch behind status bar;
@@ -53,7 +56,7 @@ private:
 			Pinball         OK
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Contra.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Macross.nes")) {
 			std::clog << "Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -95,10 +98,17 @@ private:
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::P).bPressed) pal_sel = (pal_sel + 1) & 0x7;
 		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::G).bPressed) bGridOn = !bGridOn;
 
+		//adjust emulator speed;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::COMMA).bPressed) fVariableFrameRate += 0.001f;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::PERIOD).bPressed) fVariableFrameRate -= 0.001f;
+		if (GetKey(olc::Key::CTRL).bHeld && GetKey(olc::Key::M).bPressed) fVariableFrameRate = 0.0f;
+
 		if (bEmulationRun) {
 			DrawString(kSTATUS_BAR_X, kSTATUS_BAR_Y, "Auto Run", olc::WHITE, 2);
-			if (fResidualTime > 0.0f)
+			if (fResidualTime > 0.0f) {
 				fResidualTime -= fElapsedTime;
+				fResidualTime += fVariableFrameRate;
+			}
 			else
 			{
 				fResidualTime += (1.0f / 60.0f) - fElapsedTime;
@@ -157,9 +167,15 @@ private:
 		draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
 
 		//FPS:
+		//draw_fps(kFPS_BAR_X, kSTATUS_BAR_Y);
+
+		return true;
+
+	}
+	void draw_fps(int x, int y) {
 		++frame_counter;
 		std::string frame_str{ "Frames  : " };
-		DrawString(630, kSTATUS_BAR_Y - 20, frame_str + std::to_string(frame_counter));
+		DrawString(x, y, frame_str + std::to_string(frame_counter));
 		t1 = SCLK::now();
 		span = std::chrono::duration_cast<SPAN>(t1 - t0);
 		frame_str.clear();
@@ -167,14 +183,17 @@ private:
 		double cur_frame = 1.0 / span.count();
 		frame_sum += cur_frame;
 		frame_str += std::to_string(static_cast<int>(cur_frame));
-		DrawString(630, kSTATUS_BAR_Y - 10, frame_str);
+		DrawString(x, y + 10, frame_str);
 		frame_str.clear();
 		frame_str = "Mean FPS: ";
-		DrawString(630, kSTATUS_BAR_Y, frame_str + std::to_string(frame_sum / frame_counter));
+		frame_str += std::to_string(frame_sum / frame_counter);
+		for (Byte i = 0; frame_str[i]; ++i) {
+			if (frame_str[i] == '.') {
+				frame_str[i + 4] = 0;
+			}
+		}
+		DrawString(x, y + 20, frame_str);
 		t0 = t1;
-
-		return true;
-
 	}
 	void draw_grid(int x, int y) {
 		for (int i = 0; i <= 32; ++i)
@@ -257,6 +276,7 @@ private:
 	bool bGridOn = false;
 
 	float fResidualTime = 0.0f;
+	float fVariableFrameRate = 0.0f;
 	size_t global_counter = 0;
 	uint8_t pal_sel = 0;
 	uint8_t oam_start_line = 0;

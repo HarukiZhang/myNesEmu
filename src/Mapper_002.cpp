@@ -52,7 +52,7 @@ namespace nes {
 
 	bool Mapper_002::ppu_read(Word addr, Byte& data) {
 		//PPU only gives addr 0x0000 to 0x1FFF;
-		//if (Mapper::cart->get_header().num_prg_ram)//there's possibility that num_prg_ram is 0;
+		//when num_chr_rom == 0, 8 KiB is allocated as a CHR-RAM;
 		return Mapper::cart->read_chr_rom(addr, data);
 	}
 	

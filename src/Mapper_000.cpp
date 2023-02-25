@@ -58,13 +58,12 @@ namespace nes {
 
     bool Mapper_000::ppu_read(Word addr, Byte &data){
         //HybridBus only gives addr below 0x2000;
-        if (Mapper::cart->get_header().num_chr_rom)
-            return Mapper::cart->read_chr_rom(addr, data);
-        else return false;
+        //even if num_chr_rom == 0, it will automatically allocate 8KiB as a CHR-RAM;
+        return Mapper::cart->read_chr_rom(addr, data);
     }
     bool Mapper_000::ppu_write(Word addr, Byte data){
-        //CHR-ROM is not writable;
-        return false;
+        //whether to write should be up to the program;
+        return Mapper::cart->write_chr_ram(addr, data);
     }
 
 };//end nes;

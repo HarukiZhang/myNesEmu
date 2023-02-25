@@ -562,8 +562,8 @@ namespace nes {
 
     inline void PPU::render_pixel() {
 
+        bkgr_pixel = bkgr_attrb = 0;
         if (ppu_mask.bkgr_enable) {
-            bkgr_pixel = bkgr_attrb = 0;
             //locate the current bit;
             extract_mask = 0x8000 >> fine_x;
             //withdraw the pixel info;
@@ -574,10 +574,9 @@ namespace nes {
             bkgr_attrb |= static_cast<Byte>((bkgr_shifter_attr_hi & extract_mask) > 0) << 1;
         }
 
+        sprt_pixel = sprt_attrb = 0;
+        first_being_rendered = false;
         if (ppu_mask.spr_enable) {
-            sprt_pixel = sprt_attrb = 0;
-            sp0_being_rendered = false;
-
             for (Byte i = 0; i < sprt_num; ++i) {
                 if (sprt_x_counters[i] == 0) {
                     sprt_pixel = (sprt_shifters_lo[i] & 0x80) > 0;
@@ -585,15 +584,44 @@ namespace nes {
                     sprt_attrb = (sprt_attr_latches[i] & 0x3) + 0x04;//point to sprite palettes;
                     sprt_priority = sprt_attr_latches[i] & 0x20;//0: in front of background; 1: behind background
                     if (sprt_pixel != 0) {//if the sprite is not transparent;
-                        //although the first sprite in sec oam not necessary is sprite#0,
-                        //we could combine the status of bool sp0_pres_nl
-                        //to judge whether it is;
-                        if (i == 0) sp0_being_rendered = true;
+
+                        //if sp0 is in the sec oam, then it must be put at the first place in sec oam;
+                        
+                        if (i == 0) {//if the first sprite in sec oam is being rendered;
+                            
+                            first_being_rendered = true;
+
+                            if (cycle < 256 && (bkgr_pixel > 0) && sp0_present && ppu_mask.bkgr_enable) {
+                                if (cycle <= 8) {
+                                    if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
+                                        ppu_status.sprite_hit = 1;
+                                }
+                                else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
+                                    ppu_status.sprite_hit = 1;
+                                }
+                            }
+                        }
                         break;
                     }
                 }
             }
         }
+
+        //if (cycle < 256) {//not detect at x == 255;
+        //    if (bkgr_pixel && sprt_pixel) {//if both are opaque;
+
+        //        if (sp0_present && first_being_rendered) {//if sp0 is being rendered;
+
+        //            if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {//only when both BG and SP are visible;
+        //                
+        //                if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
+        //                    ppu_status.sprite_hit = 1;
+        //                else if (cycle >= 9)
+        //                    ppu_status.sprite_hit = 1;
+        //            }
+        //        }
+        //    }
+        //}
 
         if (cycle <= 8) {//visible left-most 8 pixels;
             if (!ppu_mask.bkgr_col_enable) {
@@ -610,8 +638,8 @@ namespace nes {
         // 0	        0	            X	        BG ($3F00)
         // 0	        1-3	            X	        Sprite
         // 1-3	        0	            X	        BG
-        // 1-3	        1-3	            0	        Sprite
         // 1-3	        1-3	            1	        BG
+        // 1-3	        1-3	            0	        Sprite
 
         if (bkgr_pixel == 0) {
             if (sprt_pixel == 0) {
@@ -635,17 +663,6 @@ namespace nes {
                 else {
                     output_pixel = sprt_pixel;
                     output_attrb = sprt_attrb;
-                }
-
-                if (cycle < 255) {//not detect at x == 255;
-                    if (sp0_present && sp0_being_rendered) {
-                        if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {//only when both BG and SP are visible;
-                            if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
-                                ppu_status.sprite_hit = 1;
-                            else if (cycle >= 9)
-                                ppu_status.sprite_hit = 1;
-                        }
-                    }
                 }
             }
         }
@@ -1052,7 +1069,7 @@ namespace nes {
         //toggles for sprite0hit;
         sp0_pres_nl = false;//check for the next line while evaluating sprites;
         sp0_present = false;//indicate sp0 is present in current line;
-        sp0_being_rendered = false;
+        first_being_rendered = false;
 
         //internal variables for rendering;
         palet_idx = 0;
