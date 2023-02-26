@@ -23,7 +23,10 @@ namespace nes {
 		//	PPU $0000 - $0FFF :  4 KB switchable CHR bank
 		//	PPU $1000 - $1FFF :  4 KB switchable CHR bank
 		//
-
+		//Variants:
+		//			PRG-ROM			PRG-RAM			CHR-Mem
+		// SNROM :	128/256 KB		8 KB			8 KB RAM/ROM
+		//
 	public:
 		Mapper_001(Cartridge &_cart);
 		~Mapper_001();
@@ -38,23 +41,27 @@ namespace nes {
 	
 	private:
 		void set_control_reg();
+		void set_chr_bank(Byte num);
+		void set_prg_bank();
 
 	private:
 		//Internal Registers;
-		Byte load_reg  = 0;  //8 bits;
+		//Byte load_reg  = 0;//8 bits; <-- no need;
 		Byte shift_reg = 0;  //5 bits;
 		Byte ctrl_reg  = 0;  //5 bits;     $8000 - $9FFF
 		Byte chr_regs[2]{};  //5 bits * 2; $A000 - $BFFF
 						     //			   $C000 - $DFFF
 		Byte prg_reg   = 0;  //5 bits;     $E000 - $FFFF
 
-		Phad prg_rom_base_addr_lo = 0;//map to CPU $8000 ~ $BFFF : 16 KiB;
-		Phad prg_rom_base_addr_hi = 0;//map to CPU $C000 ~ $FFFF : 16 KiB;
-		Phad prg_ram_base_addr    = 0;//map to CPU $6000 ~ $7FFF :  8 KiB;
-		Phad chr_mem_base_addr_lo = 0;//map to PPU $0000 ~ $0FFF :  4 KiB;
-		Phad chr_mem_base_addr_hi = 0;//map to PPU $1000 ~ $1FFF :  4 KiB;
+		Phad prg_rom_base_addr_lo = 0;//		  map to CPU $8000 ~ $BFFF : 16 KiB;
+		Phad prg_rom_base_addr_hi = 0;//		  map to CPU $C000 ~ $FFFF : 16 KiB;
+		Phad prg_ram_base_addr    = 0;//		  map to CPU $6000 ~ $7FFF :  8 KiB;
+		Phad chr_mem_base_addr[2]{};  //0 = low : map to PPU $0000 ~ $0FFF :  4 KiB;
+									  //1 = high: map to PPU $1000 ~ $1FFF :  4 KiB;
 
 		Byte write_counter = 0;
+		Byte num_prg_rom = 0;
+		bool prg_ram_disable = false;
 	};
 };
 

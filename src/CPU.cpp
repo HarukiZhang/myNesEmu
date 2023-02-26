@@ -245,7 +245,7 @@ namespace nes {
                 if (cycles == 1) phase = Instr_Phase::instr_fetch;
                 break;
             default:
-                std::cout << "CPU::clock::switch error" << std::endl;
+                std::cout << "CPU::clock : phase switch error" << std::endl;
                 break;
             }
             detect_interrupt();
@@ -530,7 +530,7 @@ namespace nes {
 
             map_asm[line_addr] = sInstr;
         }
-        std::clog << "Disassemble : complete" << std::endl;
+        std::clog << "CPU::disassemble : complete" << std::endl;
         return map_asm;
     }
 

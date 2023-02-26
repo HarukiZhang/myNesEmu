@@ -34,6 +34,7 @@ namespace nes {
 	constexpr Word kMAX_CUR_PALET = 0x10;        //size of one palette memory for background/sprite;
 
 	constexpr Word kNAME_TBL_BASE = 0x2000;      //base address of name table;
+	constexpr Word kNAME_TBL_SIZE = 0x0400;      //size of single name table;
 	constexpr Word kATTR_TBL_BASE = 0x23C0;      //base address of attribute table;
 	constexpr Word kPALETTE_BASE = 0x3F00;       //base address of palette memory;
 
@@ -45,6 +46,14 @@ namespace nes {
 	constexpr Word kPRG_ROM_SIZE = 0x4000;       //size of programable-ROM of iNES 1.0 file format;
 	constexpr Word kCHR_ROM_SIZE = 0x2000;       //size of character-ROM of iNES 1.0 file format;;
 	constexpr Word kPRG_RAM_SIZE = 0x2000;       //size of programable-RAM of iNES 1.0 file format;
+
+	constexpr Phad kWINDOW_4K  = 0x1000;
+	constexpr Phad kWINDOW_8K  = 0x2000;
+	constexpr Phad kWINDOW_16K = 0x4000;
+	constexpr Phad kWINDOW_32K = 0x8000;
+
+	constexpr Word kMAX_FILE_PATH_LEN = 0x100;
+
 
 	//CPU status flag;
 	enum FLAG {
@@ -405,26 +414,27 @@ namespace nes {
 	};
 
 	struct NESHeader {
-		char NES1A[4];           //Btye 0-3
-		Byte num_prg_rom;        //Btye 4 : Size of PRG ROM in 16 KB units;
-		Byte num_chr_rom;        //Byte 5 : Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
-		//Byte 6:            <-    Byte 6
-		Byte mirror_hv : 1;      //0:horizontal; 1:vertical;
-		Byte save_ram : 1;       //Cartridge contains battery-backed PRG RAM ($6000-7FFF) 
-						         //		or other persistent memory
-		Byte trainer : 1;		 //512-byte trainer at $7000-$71FF (stored before PRG data)
-		Byte four_screen : 1;    //		within cart provide extra VRAM;
-		Byte n_mapper_low : 4;   //lower 4bits of mapper, stood at upper 4bits in Byte 6;
+		char NES1A[4];//   : 8    Btye 0-3
+		Byte num_prg_rom;//: 8    Btye 4 : Size of PRG ROM in 16 KB units;
+		Byte num_chr_rom;//: 8    Byte 5 : Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
+		//Byte 6:			   <- Byte 6
+		Byte mirror_hv     : 1;// 0:horizontal; 1:vertical;
+		Byte prg_ram       : 1;// Cartridge contains battery-backed PRG RAM ($6000-7FFF) or other persistent memory
+		Byte trainer       : 1;// 512-byte trainer at $7000-$71FF (stored before PRG data)
+		Byte four_screen   : 1;// Cancel the h or v mirror, and instead use Cartridge provided extra VRAM;
+		Byte n_mapper_low  : 4;// Lower 4bits of mapper, stood at upper 4bits in Byte 6;
 		//Byte 6 end;
-		//Byte 7:            <-    Byte 7
-		Byte vs_unisys : 1;
-		Byte playchoice : 1;
-		Byte nes_2_sign : 2;
-		Byte n_mapper_high : 4;  //upper 4bits of mapper, at upper 4bits in Byte 7;
+		//Byte 7:			   <- Byte 7
+		Byte vs_unisys     : 1;
+		Byte playchoice    : 1;
+		Byte nes_2_sign    : 2;
+		Byte n_mapper_high : 4;// Upper 4bits of mapper, at upper 4bits in Byte 7;
 		//Byte 7 end;
-		Byte num_prg_ram;        //Byte 8
-		char tailBytes[7];       //Byte 9-15
+		Byte num_prg_ram;//: 8    Byte 8; Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility)
+		                 //       This was a later extension to the iNES format and not widely used.
+		char tailBytes[7];//:8    Byte 9-15
 
+		//Methods
 		Byte &operator[](Word _addr){
 			return reinterpret_cast<Byte*>(this)[_addr];
 		}

@@ -3,6 +3,7 @@
 #include "Mapper.h"
 
 #include "Mapper_000.h"
+#include "Mapper_001.h"
 #include "Mapper_002.h"
 
 namespace nes {
@@ -14,11 +15,14 @@ namespace nes {
         case Mapper_Type::NROM :
             return std::make_shared<Mapper_000>(r_cart);
             break;
+        case Mapper_Type::MMC1:
+            return std::make_shared<Mapper_001>(r_cart);
+            break;
         case Mapper_Type::UxROM :
             return std::make_shared<Mapper_002>(r_cart);
             break;
         default :
-            std::cerr << "Mapper other than 000, 002 is not support now" << std::endl;
+            std::cerr << "Mapper::create_mapper : Now, only Mapper 000, 001, 002 is available." << std::endl;
             return nullptr;
             break;
         }
@@ -54,8 +58,14 @@ namespace nes {
         return addr & 0x7ff;
     }
 
-    Word Mapper::mirror_single_screen(Word addr){
+    Word Mapper::mirror_a_only(Word addr){
+        //map $2000 ~ $2FFF to $2000 ~ $23FF;
         return addr & 0x3ff;
+    }
+
+    Word Mapper::mirror_b_only(Word addr) {
+        //map $2000 ~ $2FFF to $2400 ~ $27FF;
+        return (addr & 0x3ff) + kNAME_TBL_SIZE;
     }
 
     Word Mapper::mirror_four_screen(Word addr){

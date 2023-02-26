@@ -27,7 +27,8 @@ namespace nes {
 
         Word mirror_horizontal(Word addr);
         Word mirror_vertical(Word addr);
-        Word mirror_single_screen(Word addr);
+        Word mirror_a_only(Word addr);//also called: one-screen lower bank;
+        Word mirror_b_only(Word addr);//also called: one-screen upper bank;
         Word mirror_four_screen(Word addr);
 
     protected:

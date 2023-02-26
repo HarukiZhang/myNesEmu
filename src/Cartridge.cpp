@@ -9,44 +9,11 @@ namespace nes {
     Cartridge::Cartridge(){}
 
     Cartridge::~Cartridge() {
-        if (!prg_ram.empty()) {
-            std::ofstream ofs{ "D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\save_ram_out", std::ios_base::out | std::ios_base::trunc };
-            if (!ofs.is_open()) {
-                std::clog << "Output file open failed." << std::endl;
-                return;
-            }
-
-            //    Text output
-            //    ---------- -
-            //    Tests generally print information on screen.They also output the same
-            //    text as a zero - terminted string beginning at $6004, allowing examination
-            //    of output in an NSF player, or a NES emulator without a working PPU.The
-            //    tests also work properly if the PPU doesn't set the VBL flag properly or
-            //    doesn't implement it at all.
-            //    The final result is displayed and also written to $6000.Before the test
-            //    starts, $80 is written there so you can tell when it's done. If a test
-            //    needs the NES to be reset, it writes $81 there.
-            // 
-            //    In addition, $DE $B0 $61
-            //    is written to $6001 - $6003 to allow an emulator to detect when a test is
-            //    being run, as opposed to some other NES program.In NSF builds, the
-            //    final result is also reported via a series of beeps(see below).
-
-            ofs << "Save-RAM data : ";
-            if (prg_ram[1] == 0xDE && prg_ram[2] == 0xB0 && prg_ram[3] == 0x61)
-                ofs << "valid" << std::endl;
-            else ofs << "invalid" << std::endl;
-            ofs << "======================================" << std::endl;
-            if (prg_ram[0x4])
-                ofs << reinterpret_cast<char*>(&prg_ram[0x4]);
-            ofs << std::endl;
-
-            ofs.close();
-        }
+        save_sram();
     }
 
-    Cartridge::Cartridge(const char *file_path){
-        load_file(file_path);
+    Cartridge::Cartridge(const char *_file_path){
+        load_file(_file_path);
     };
 
     bool Cartridge::read_prg_rom(Phad addr, Byte &data){
@@ -69,21 +36,28 @@ namespace nes {
     }
 
     bool Cartridge::read_prg_ram(Phad addr, Byte &data){
-        data = prg_ram[addr];
-        return true;
+        if (!prg_ram.empty()) {
+            data = prg_ram[addr];
+            return true;
+        }
+        return false;
     }
 
     bool Cartridge::write_prg_ram(Phad addr, Byte data){
-        prg_ram[addr] = data;
-        return true;
+        if (!prg_ram.empty()) {
+            prg_ram[addr] = data;
+            return true;
+        }
+        return false;
     }
 
     const NESHeader &Cartridge::get_header(){
         return header;
     }
 
-    bool Cartridge::load_test_rom(const char* file_path, bool create_prg_ram)
+    bool Cartridge::load_test_rom(const char* _file_path, bool create_prg_ram)
     {
+        file_path = _file_path;
         std::ifstream ifs{ file_path, std::ios_base::binary | std::ios_base::in };
         if (!ifs.is_open()) {
             std::cerr << "Test ROM file open : failed." << std::endl;
@@ -128,10 +102,11 @@ namespace nes {
         return ret;
     }
 
-    bool Cartridge::load_file(const char *file_path){
+    bool Cartridge::load_file(const char *_file_path){
+        file_path = _file_path;
         std::ifstream ifs {file_path, std::ios_base::binary | std::ios_base::in};
         if (!ifs.is_open()){
-            std::cerr << "ROM file open failed." << std::endl;
+            std::cerr << "Cartridge::load_file : ROM file open failed." << std::endl;
             return false;
         }
 
@@ -235,7 +210,7 @@ namespace nes {
         //make sure that num_prg_rom is not 0;
         if (proceed) {
             if (header.num_prg_rom == 0) {
-                std::clog << "Loading of rom is aborted : num_prg_rom == 0" << std::endl;
+                std::clog << "Cartridge::load_file : Loading of rom is aborted : num_prg_rom == 0" << std::endl;
                 proceed = false;
             }
         }
@@ -247,18 +222,28 @@ namespace nes {
                 load_content(ifs);//set the prg_ram only when file indicates;
                 proceed = true;
                 break;
-            case Mapper_Type::UxROM:
+            case Mapper_Type::MMC1:
                 if (header.num_prg_rom > 16) {
-                    std::clog << "Mapper 002 mapping do not support PRG-ROM larger than 256 KiB now." << std::endl;
+                    std::clog << "Cartridge::load_file : Mapper 001 mapping do not support PRG-ROM larger than 256 KiB now." << std::endl;
                     proceed = false;
                 }
                 else {
-                    load_content(ifs);
+                    load_content(ifs, true);//by default, create an 8KiB PRG-RAM;
+                    proceed = true;
+                }
+                break;
+            case Mapper_Type::UxROM:
+                if (header.num_prg_rom > 16) {
+                    std::clog << "Cartridge::load_file : Mapper 002 mapping do not support PRG-ROM larger than 256 KiB now." << std::endl;
+                    proceed = false;
+                }
+                else {
+                    load_content(ifs);//Mapper_002 : PRG RAM capacity : None;
                     proceed = true;
                 }
                 break;
             default:
-                std::clog << "Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
+                std::clog << "Cartridge::load_file : Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
                 proceed = false;
                 break;
             }
@@ -268,33 +253,103 @@ namespace nes {
         return proceed;
     }
 
+    bool Cartridge::save_sram()
+    {
+        //"D:\\haruk\\Projects\\nesEmu\\myNESEmu\\test\\save_ram_out"
+
+        if (!prg_ram.empty() && header.prg_ram) {
+            std::ofstream ofs{ make_sav_path(), std::ios_base::out | std::ios_base::trunc };
+            if (!ofs.is_open()) {
+                std::clog << "Cartridge::save_sram : sav file open failed." << std::endl;
+                return false;
+            }
+
+            ofs.write(reinterpret_cast<char*>(&prg_ram[0]), kPRG_RAM_SIZE);
+            ofs.close();
+            std::clog << "Cartridge::save_sram : Save-RAM has been successfully saved." << std::endl;
+            
+            return true;
+        }
+        return false;
+    }
+
+    bool Cartridge::load_save()
+    {
+        if (!prg_ram.empty() && header.prg_ram) {//load sav only if the rom told so;
+            std::ifstream ifs{ make_sav_path() };
+            if (ifs.is_open()) {
+                ifs.read(reinterpret_cast<char*>(&prg_ram[0]), kPRG_RAM_SIZE);
+                ifs.close();
+                std::clog << "Cartridge::load_save : sav file has been successfully loaded." << std::endl;
+                return true;
+            }
+            //ifstream open failure indicates addr path do not exist;
+            std::clog << "Cartridge::load_save : sav file does not exist." << std::endl;
+        }
+        return false;
+    }
+
     void Cartridge::load_content(std::ifstream& ifs, bool create_ram){
         if (header.trainer) {//if has trainer within rom file;
             //just ignore the trainer;
             ifs.seekg(kTRAINER_SIZE, std::ios_base::cur);
-            std::clog << "The trainer has been ignored." << std::endl;
+            std::clog << "Cartridge::load_content : Trainer has been ignored." << std::endl;
         }
 
         if (size_prg_rom = (size_t)kPRG_ROM_SIZE * header.num_prg_rom) {//Attention: size could be 0;
             prg_rom.resize(size_prg_rom);
             ifs.read(reinterpret_cast<char*>(&prg_rom[0]), size_prg_rom);
+            std::clog << "Cartridge::load_content : PRG-ROM has been loaded." << std::endl;
         }
 
         if (size_chr_rom = (size_t)kCHR_ROM_SIZE * header.num_chr_rom) {
             chr_rom.resize(size_chr_rom);
             ifs.read(reinterpret_cast<char*>(&chr_rom[0]), size_chr_rom);
+            std::clog << "Cartridge::load_content : CHR-ROM has been loaded." << std::endl;
         }
         else {//if header byte 5 == 0, the borad uses CHR-RAM;
             //by default, allocate 8 KiB for the CHR-RAM;
             chr_rom.resize(kPRG_RAM_SIZE, 0);
+            std::clog << "Cartridge::load_content : CHR-RAM has been prepared." << std::endl;
         }
 
-        if (header.save_ram || create_ram) {
+        if (header.prg_ram || create_ram) {
             //8KiB battery-backed or persistent memory mapped to $6000 - $7FFF;
+            //refer to header byte 8 : "Value 0 infers 8 KB for compatibility"
             prg_ram.resize(kPRG_RAM_SIZE);
-            std::clog << "PRG-RAM is prepared." << std::endl;
-            if (create_ram) header.save_ram = 1;//to inform mapper;
+            std::clog << "Cartridge::load_content : PRG-RAM has been prepared." << std::endl;
+            
+            load_save();
+
+            //if (create_ram) header.prg_ram = true;//to inform mapper;
         }
+    }
+
+    std::string Cartridge::make_sav_path()
+    {
+        std::string _path{ file_path };
+        int i = _path.size() - 3;
+        _path[i + 0] = 's';
+        _path[i + 1] = 'a';
+        _path[i + 2] = 'v';
+        return _path;
+        //int len = 0;
+        //while (file_path[len]) ++len;
+        //std::string s{ "./" };
+        //for (int i = len - 1; i >= 0; --i) {
+        //    if (file_path[i] == '\\' || file_path[i] == '/') {
+        //        ++i;
+        //        s += &file_path[i];
+        //        int j = s.size() - 3;
+        //        s[j + 0] = 's';
+        //        s[j + 1] = 'a';
+        //        s[j + 2] = 'v';
+        //        return s;
+        //        break;
+        //    }
+        //}
+        //s.clear();
+        //return s;
     }
 
     void Cartridge::print_info_v_iNES() {
@@ -306,7 +361,7 @@ namespace nes {
         if (header.mirror_hv) std::clog << "vertical" << std::endl;
         else std::clog << "horizontal" << std::endl;
         std::clog << "8 KB Save/PRG-RAM   : ";
-        if (header.save_ram) std::clog << "Y" << std::endl;
+        if (header.prg_ram) std::clog << "Y" << std::endl;
         else std::clog << "N" << std::endl;
         std::clog << "512 Byte Trainer    : ";
         if (header.trainer) std::clog << "Y" << std::endl;
@@ -318,7 +373,7 @@ namespace nes {
             << static_cast<int>(header.n_mapper()) << std::endl;
         // Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility)
         // std::clog << "8 KB PRG-RAM        : ";
-        // if (header.save_ram) std::clog << "Y" << std::endl;
+        // if (header.prg_ram) std::clog << "Y" << std::endl;
         // else std::clog << "N" << std::endl;
         std::clog << std::endl;
         std::clog << "iNES header info reading complete." << std::endl;

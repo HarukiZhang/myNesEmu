@@ -9,8 +9,6 @@ namespace nes {
         const NESHeader &cr_h = _cart.get_header();
         if(cr_h.num_prg_rom == 2)
             addr_mask = 0x7FFF;//for NROM_256;
-        if (cr_h.save_ram)
-            has_prg_ram = true;//is this correct ?
         
         //Fixed H or V, controlled by solder pads (*V only)
         Mapper::nt_mirror_map = cr_h.mirror_hv ? 
@@ -30,9 +28,7 @@ namespace nes {
         if (addr < 0x8000){
             // 0110 0000 0000 0000 - 0111 1111 1111 1111
             // -> $0000            - 0001 1111 1111 1111
-            if (has_prg_ram)//              <-- is this if-judge necessary?
-                return Mapper::cart->read_prg_ram(addr - 0x6000, data);
-            else return false;
+            return Mapper::cart->read_prg_ram(addr - 0x6000, data);//whether the cart has a PRG-RAM is up to the cart itself;
         }
         else {//program should guarantee addr not beyond $FFFF;
             return Mapper::cart->read_prg_rom(addr & addr_mask, data);
@@ -48,9 +44,7 @@ namespace nes {
     bool Mapper_000::cpu_write(Word addr, Byte data){
         //MainBus wont give addresses below $6000;
         if (addr < 0x8000){
-            if (has_prg_ram)
-                return Mapper::cart->write_prg_ram(addr - 0x6000, data);
-            else return false;
+            return Mapper::cart->write_prg_ram(addr - 0x6000, data);
         }
         //it should be non-writable to prg-rom and chr-rom;
         return false;

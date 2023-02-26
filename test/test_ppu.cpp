@@ -38,8 +38,10 @@ private:
 		/*
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\01.basics.nes
-			D:\\haruk\\Projects\\nesEmu\\ROMs\\SMB.nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_001\\.nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_002\\.nes
 
+			#000
 			SMB             OK
 			IceClimber      OK
 			Macross         Glitch behind status bar;
@@ -54,30 +56,44 @@ private:
 			Millipede       OK
 			Pac-Man         OK
 			Pinball         OK
+
+			#001
+			Bomberman II (Japan)
+			Double Dragon (USA)
+			Final Fantasy (Japan) (Rev 1)   X
+			Final Fantasy II (Japan)        X
+			Mega Man 2 (USA)
+			Metroid (USA)
+			Ninja Ryuuken Den (Japan)
+			Sangokushi - Chuugen no Hasha (Japan)
+			Tetris (USA)                    ok
+
+			#002
+			DuckTales (USA)
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\Macross.nes")) {
-			std::clog << "Cartridge loading : success" << std::endl;
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_001\\Tetris (USA).nes")) {
+			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {
-			std::clog << "Cartridge loading : failed" << std::endl;
+			std::clog << "Demo::OnUserCreate : Cartridge loading : failed" << std::endl;
 			return false;
 		}
 		mapp = nes::Mapper::create_mapper(cart);
-		if (mapp) std::clog << "Mapper creation : success" << std::endl;
+		if (mapp) std::clog << "Demo::OnUserCreate : Mapper creation : success" << std::endl;
 		else {
-			std::clog << "Mapper creation : failed" << std::endl;
+			std::clog << "Demo::OnUserCreate : Mapper creation : failed" << std::endl;
 			return false;
 		}
 		mbus.connect(&cpu, &ppu, mapp);
-		std::clog << "Mapper usecount : " << mapp.use_count() << std::endl;
+		std::clog << "Demo::OnUserCreate : Mapper usecount : " << mapp.use_count() << std::endl;
 		
 		map_asm = cpu.disassemble(0x8000, 0xFFFF);
 
 		mbus.reset();
 		cpu.reset(false);//hard reset;
 
-		std::clog << "Initiation : complete" << std::endl;
+		std::clog << "Demo::OnUserCreate : Initiation : complete" << std::endl;
 		return true;
 	}
 	bool OnUserUpdate(float fElapsedTime) override {

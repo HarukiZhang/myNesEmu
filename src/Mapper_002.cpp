@@ -6,10 +6,12 @@ namespace nes {
 		: Mapper{_cart}
 	{
 		high_bank_base_addr = (Phad)kPRG_ROM_SIZE * (_cart.get_header().num_prg_rom - 1);
-		low_bank_base_addr = 0;
-
+		low_bank_base_addr = 0x00000000;
+		//initialize nt mirror accroding to cart->header;
 		Mapper::nt_mirror_map = _cart.get_header().mirror_hv ?
 			&Mapper::mirror_vertical : &Mapper::mirror_horizontal;
+		//set to a known state;
+		this->reset();
 	}
 
 	Mapper_002::~Mapper_002(){}
@@ -37,15 +39,16 @@ namespace nes {
 	}
 	
 	bool Mapper_002::cpu_write(Word addr, Byte data) {
+		//MainBus gives addresses beyond $6000, ie, $6000 ~ $FFFF;
 		//write to PRG-ROM effectively select the bank that cpu reads from;
-		if (addr >= 0x8000 && addr <= 0xFFFF) {
+		if (addr >= 0x8000) {
 			//	7  bit  0
 			//	---- ----
 			//	xxxx pPPP
 			//		 ||||
 			//		 ++++ - Select 16 KB PRG ROM bank for CPU $8000 - $BFFF
 			//				(UNROM uses bits 2 - 0; UOROM uses bits 3 - 0)
-			low_bank_base_addr = (Phad)kPRG_ROM_SIZE * (addr & 0x000f);
+			low_bank_base_addr = (Phad)kPRG_ROM_SIZE * (data & 0x0f);
 		}
 		return false;//to inform that the ROM is not updated;
 	}

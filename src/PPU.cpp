@@ -283,7 +283,7 @@ namespace nes {
             }
             break;
         default:
-            std::clog << "eval_sprite: swtich error" << std::endl;
+            std::clog << "PPU::eval_sprite: swtich error" << std::endl;
             break;
         }
 #else
@@ -747,13 +747,13 @@ namespace nes {
         case 5 : //$2005 : screen scroll offset reg;
             ppu_scroll = data;
             if (is_first_write == 0){//toggle: 1 = after 1st write; 0 = after 2nd write / init;
-                if (scanline <= 240 && cycle <= 256) {
-                    scroll_updated_while_rendering = true;
-                    temp_fine_x = data & 0x7;
-                }
-                else {
+                //if (scanline <= 240 && cycle <= 256) {
+                //    scroll_updated_while_rendering = true;
+                //    temp_fine_x = data & 0x7;
+                //}
+                //else {
                     fine_x = data & 0x7;//low 3 bits;
-                }
+                //}
                 temp_addr.coarse_x = data >> 3;//high 5 bits;
             }
             else {
