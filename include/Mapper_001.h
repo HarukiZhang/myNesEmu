@@ -39,6 +39,9 @@ namespace nes {
 		bool ppu_read(Word addr, Byte& data) override;
 		bool ppu_write(Word addr, Byte data) override;
 	
+		bool irq_state() override;
+		bool count_scanline() override;
+
 	private:
 		void set_control_reg();
 		void set_chr_bank(Byte num);

@@ -44,7 +44,8 @@ namespace nes {
         bool ppu_read(Word addr, Byte &data) override;
         bool ppu_write(Word addr, Byte data) override;
 
-        //void set_nt_mirror(); <-- no need to dynamically change;
+        bool irq_state() override;
+        bool count_scanline() override;
 
     private:
         Word addr_mask = 0x3fff;//$7FFF for NROM_256; $3FFF for NROM_128;

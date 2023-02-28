@@ -20,23 +20,33 @@ namespace nes {
         ppu->clock();
         ppu->clock();
         ppu->clock();
-        check_nmi();
+        check_interrupt();
         //if (sys_clock % 3 == 0)
         cpu->clock();
         ++sys_clock;
     }
 
-    inline void MainBus::check_nmi() {
+    inline void MainBus::check_interrupt() {
 #ifdef S_MODE
         if (ppu->nmi_out) {
             nmi_detected = true;
             //ppu->nmi_out = false;
         }
         else nmi_detected = false;
+
+        if (mapper->irq_state()) {
+            irq_detected = true;
+            //MMC3's IRQ should be acknowledged by writing $E000-$FFFE, even;
+        }
+        else irq_detected = false;
 #else
         if (ppu->nmi_out) {
             ppu->nmi_out = false;
             cpu->nmi_pending = true;
+        }
+        if (mapper->irq_state()) {
+            mapper->clear_irq();
+            cpu->irq_pending = true;
         }
 #endif
     }

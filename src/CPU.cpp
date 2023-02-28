@@ -255,6 +255,10 @@ namespace nes {
                     nmi_pending = false;
                     nmi();
                 }
+                else if (irq_pending) {
+                    irq_pending = false;
+                    irq();
+                }
                 else {
                     fetch(PC++, cur_opcode);
                     P.U = 1;//always set unused bit 1;

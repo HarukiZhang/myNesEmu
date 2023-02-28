@@ -47,6 +47,8 @@ namespace nes {
 	constexpr Word kCHR_ROM_SIZE = 0x2000;       //size of character-ROM of iNES 1.0 file format;;
 	constexpr Word kPRG_RAM_SIZE = 0x2000;       //size of programable-RAM of iNES 1.0 file format;
 
+	constexpr Phad kWINDOW_1K  = 0x0400;
+	constexpr Phad kWINDOW_2K  = 0x0800;
 	constexpr Phad kWINDOW_4K  = 0x1000;
 	constexpr Phad kWINDOW_8K  = 0x2000;
 	constexpr Phad kWINDOW_16K = 0x4000;

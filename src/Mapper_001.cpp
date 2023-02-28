@@ -9,8 +9,7 @@ namespace nes {
 		const NESHeader& r_h = Mapper::cart->get_header();
 		num_prg_rom = r_h.num_prg_rom;
 		//initialize nt mirror according to cart->header;
-		Mapper::nt_mirror_map = _cart.get_header().mirror_hv ?
-			&Mapper::mirror_vertical : &Mapper::mirror_horizontal;
+		Mapper::init_nt_mirror();
 		//set to a known state;
 		this->reset();
 	}
@@ -231,13 +230,37 @@ namespace nes {
 
 	bool Mapper_001::ppu_read(Word addr, Byte& data)
 	{
-		//PPU only gives addresses below $2000;
-		return Mapper::cart->read_chr_rom(chr_mem_base_addr[(addr & 0x1000) >> 12] | (addr & 0x0fff), data);
+		//PPU gives addresses below $3F00;
+		if (addr < 0x2000) {
+			return Mapper::cart->read_chr_rom(chr_mem_base_addr[(addr & 0x1000) >> 12] | (addr & 0x0fff), data);
+		}
+		else {//$2000 ~ $3EFF;
+			//map $3XXX to $2XXX;
+			data = (this->*Mapper::nt_mirror_map)(addr & 0x2fff);
+			return true;
+		}
 	}
 
 	bool Mapper_001::ppu_write(Word addr, Byte data)
 	{
-		//PPU only gives addresses below $2000;
-		return Mapper::cart->write_chr_ram(chr_mem_base_addr[(addr & 0x1000) >> 12] | (addr & 0x0fff), data);
+		//PPU gives addresses below $3F00;
+		if (addr < 0x2000) {
+			return Mapper::cart->write_chr_ram(chr_mem_base_addr[(addr & 0x1000) >> 12] | (addr & 0x0fff), data);
+		}
+		else {//$2000 ~ $3EFF;
+			//map $3XXX to $2XXX;
+			(this->*Mapper::nt_mirror_map)(addr & 0x2fff) = data;
+			return true;
+		}
+	}
+
+	bool Mapper_001::irq_state()
+	{
+		return false;
+	}
+
+	bool Mapper_001::count_scanline()
+	{
+		return false;
 	}
 };

@@ -8,8 +8,7 @@ namespace nes {
 		high_bank_base_addr = (Phad)kPRG_ROM_SIZE * (_cart.get_header().num_prg_rom - 1);
 		low_bank_base_addr = 0x00000000;
 		//initialize nt mirror accroding to cart->header;
-		Mapper::nt_mirror_map = _cart.get_header().mirror_hv ?
-			&Mapper::mirror_vertical : &Mapper::mirror_horizontal;
+		Mapper::init_nt_mirror();
 		//set to a known state;
 		this->reset();
 	}
@@ -54,13 +53,35 @@ namespace nes {
 	}
 
 	bool Mapper_002::ppu_read(Word addr, Byte& data) {
-		//PPU only gives addr 0x0000 to 0x1FFF;
-		//when num_chr_rom == 0, 8 KiB is allocated as a CHR-RAM;
-		return Mapper::cart->read_chr_rom(addr, data);
+		//PPU gives addresses below $3F00;
+		if (addr < 0x2000) {
+			//when num_chr_rom == 0, 8 KiB is allocated as a CHR-RAM;
+			return Mapper::cart->read_chr_rom(addr, data);
+		}
+		else {
+			//map $3XXX to $2XXX;
+			data = (this->*Mapper::nt_mirror_map)(addr & 0x2fff);
+			return true;
+		}
 	}
 	
 	bool Mapper_002::ppu_write(Word addr, Byte data) {
-		//suppose that char-ROM is not writable;
-		return Mapper::cart->write_chr_ram(addr, data);
+		//PPU gives addresses below $3F00;
+		if (addr < 0x2000) {
+			return Mapper::cart->write_chr_ram(addr, data);
+		}
+		else {//$2000 ~ $3EFF;
+			//map $3XXX to $2XXX;
+			(this->*Mapper::nt_mirror_map)(addr & 0x2fff) = data;
+			return true;
+		}
+	}
+	bool Mapper_002::irq_state()
+	{
+		return false;
+	}
+	bool Mapper_002::count_scanline()
+	{
+		return false;
 	}
 };

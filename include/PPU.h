@@ -61,6 +61,7 @@ namespace nes {
         void CLR_FLAG() {
             IN_FE_NT();
             ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+            sp0_hit_flag = false;
             nmi_out = false;
             //clear sprite rendering buffers;
             for (Byte i = 0; i < 8; ++i) {
@@ -245,7 +246,7 @@ namespace nes {
         Byte ppu_data = 0;     //$2007
 
         //Memory related to PPU;
-        VRAM vram;
+        //VRAM vram; <-- put to Mapper;
         Palette palette;
         OAM oam;
         SEC_OAM sec_oam;
@@ -320,11 +321,16 @@ namespace nes {
         bool sp0_pres_nl = false;//check for the next line while evaluating sprites;
         bool sp0_present = false;//indicate sp0 is present in current line;
         bool first_being_rendered = false;
+        bool sp0_hit_flag = false;
 
         //internal variables for rendering;
         Byte palet_idx = 0;
         Byte output_pixel = 0;
         Byte output_attrb = 0;
+
+        //debug:
+        Word scanline_counter_counts = 0;
+        Word ppu_bus_latch = 0;
 
         std::shared_ptr<Mapper> mapper = nullptr;
 

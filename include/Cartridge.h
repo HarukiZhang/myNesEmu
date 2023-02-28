@@ -22,6 +22,7 @@ namespace nes {
         bool write_chr_ram(Phad addr, Byte data);
         bool read_prg_ram(Phad addr, Byte &data);
         bool write_prg_ram(Phad addr, Byte data);
+        Byte& access_ext_ram(Phad addr);
 
         const NESHeader &get_header();
 
@@ -48,6 +49,8 @@ namespace nes {
         std::vector<Byte> prg_rom;
         std::vector<Byte> chr_rom;//if header byte 5 == 0, it's chr-ram;
         std::vector<Byte> prg_ram;
+        std::vector<Byte> ext_ram;//extra VRAM for 4-screen NT mirrorring;
+        Byte null_ret = 0;
     };
 
 };//end nes

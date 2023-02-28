@@ -27,7 +27,7 @@ namespace nes {
         //check signal from each devices;
         //MainBus should only check signals and inform CPU that there is interrupt request,
         //  but not to "command" CPU to be interrupted;
-        void check_nmi();
+        void check_interrupt();
 
 
         //debug:

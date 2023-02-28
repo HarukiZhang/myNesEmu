@@ -32,6 +32,10 @@ namespace nes {
 
 		bool ppu_read(Word addr, Byte& data) override;
 		bool ppu_write(Word addr, Byte data) override;
+
+		bool irq_state() override;
+		bool count_scanline() override;
+
 	private:
 		Phad high_bank_base_addr = 0;
 		Phad low_bank_base_addr = 0;

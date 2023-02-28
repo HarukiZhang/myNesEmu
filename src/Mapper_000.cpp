@@ -1,5 +1,4 @@
 #include "Mapper_000.h"
-#include "Cartridge.h"
 
 namespace nes {
 
@@ -11,8 +10,7 @@ namespace nes {
             addr_mask = 0x7FFF;//for NROM_256;
         
         //Fixed H or V, controlled by solder pads (*V only)
-        Mapper::nt_mirror_map = cr_h.mirror_hv ? 
-            &Mapper::mirror_vertical : &Mapper::mirror_horizontal;
+        Mapper::init_nt_mirror();
     }
 
     Mapper_000::~Mapper_000(){
@@ -51,13 +49,39 @@ namespace nes {
     }
 
     bool Mapper_000::ppu_read(Word addr, Byte &data){
-        //HybridBus only gives addr below 0x2000;
-        //even if num_chr_rom == 0, it will automatically allocate 8KiB as a CHR-RAM;
-        return Mapper::cart->read_chr_rom(addr, data);
+        //PPU gives addresses below $3F00;
+        if (addr < 0x2000) {
+            //even if num_chr_rom == 0, it will automatically allocate 8KiB as a CHR-RAM;
+            return Mapper::cart->read_chr_rom(addr, data);
+        }
+        else {//$2000 ~ $3EFF;
+            //map $3XXX to $2XXX;
+            data = (this->*Mapper::nt_mirror_map)(addr & 0x2fff);
+            return true;
+        }
     }
+
     bool Mapper_000::ppu_write(Word addr, Byte data){
-        //whether to write should be up to the program;
-        return Mapper::cart->write_chr_ram(addr, data);
+        //PPU gives addresses below $3F00;
+        if (addr < 0x2000) {
+            //whether to write should be up to the program;
+            return Mapper::cart->write_chr_ram(addr, data);
+        }
+        else {//$2000 ~ $3EFF;
+            //map $3XXX to $2XXX;
+            (this->*Mapper::nt_mirror_map)(addr & 0x2fff) = data;
+            return true;
+        }
+    }
+
+    bool Mapper_000::irq_state()
+    {
+        return false;
+    }
+
+    bool Mapper_000::count_scanline()
+    {
+        return false;
     }
 
 };//end nes;

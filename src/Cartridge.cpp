@@ -51,6 +51,14 @@ namespace nes {
         return false;
     }
 
+    Byte& Cartridge::access_ext_ram(Phad addr)
+    {
+        if (!ext_ram.empty())
+            return ext_ram[addr];
+        return null_ret;
+
+    }
+
     const NESHeader &Cartridge::get_header(){
         return header;
     }
@@ -242,6 +250,10 @@ namespace nes {
                     proceed = true;
                 }
                 break;
+            case Mapper_Type::MMC3:
+                load_content(ifs);//Mapper_004 : allocate PRG-RAM only when cart told so;
+                proceed = true;
+                break;
             default:
                 std::clog << "Cartridge::load_file : Mapper #" << (int)header.n_mapper() << " is not support now." << std::endl;
                 proceed = false;
@@ -322,6 +334,12 @@ namespace nes {
             load_save();
 
             //if (create_ram) header.prg_ram = true;//to inform mapper;
+        }
+
+        if (header.four_screen) {
+            //2KiB cartridge-nested extra VRAM used for four-screen NT mirrorring;
+            ext_ram.resize(kNAME_TBL_SIZE * 2);
+            std::clog << "Cartridge::load_content : Extra VRAM has been prepared." << std::endl;
         }
     }
 

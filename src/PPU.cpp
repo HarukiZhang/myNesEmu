@@ -1,6 +1,13 @@
 #include "PPU.h"
+#include "Log.h"
 
 #define S_MODE
+#define L_MODE
+
+#ifdef L_MODE
+#include "Mapper.h"
+#include "Mapper_004.h"
+#endif
 
 namespace nes {
     
@@ -113,12 +120,34 @@ namespace nes {
                 opcode = opcode_mtx[1][cycle];
                 (this->*micop_mtx[opcode])();
             }
+
+            //MMC3 scanline counter;
+            if (check_render_enabled() && cycle == 260) {
+#ifdef L_MODE
+                ++scanline_counter_counts;
+                const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
+                if (ptr->irq_reload) {
+                    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
+                        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
+                }
+
+                if (mapper->count_scanline()) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
+                }
+
+#else
+                mapper->count_scanline();
+#endif
+            }
+
+
 #else
             if (cycle > 0) {//non-idle cycles;
 
                 //no matter whether render enabled;
                 if (scanline == 0 && cycle == 1) {
                     ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+                    sp0_hit_flag = false;
                     nmi_out = false;
                     for (Byte i = 0; i < 8; ++i) {
                         sprt_shifters_lo[i] = 0;
@@ -223,6 +252,11 @@ namespace nes {
             if (scanline > 261) {
                 scanline = 0;
                 ++frame;
+#ifdef L_MODE
+                LOG() << "[PPU] MMC1::counter counted " << std::dec << scanline_counter_counts << std::endl;
+                scanline_counter_counts = 0;
+                LOG() << "[PPU]------------------ frame " << frame <<" -----------------------" << std::endl;
+#endif
                 frame_complete = true;//one frame rendering is complete;
             }
         }
@@ -317,62 +351,6 @@ namespace nes {
         }
 #endif
     }
-
-    //void PPU::fetch_tile() {
-    //    if (cycle < 339) {
-    //        switch (cycle & 0x7) {
-    //        case 0://8th cycle
-    //            if (!sprite_fetch_enable) {
-    //                vram_addr.inc_hori();
-    //            }
-    //            break;
-    //        case 1://fetch name table byte;
-    //            if (!sprite_fetch_enable) {
-    //                load_bkgr_shifters();
-    //                read(vram_addr.get_nt_addr(), bkgr_next_id);
-    //            }
-    //            break;
-    //        case 2:
-    //            break;
-    //        case 3://fetch attribute table byte;
-    //            if (!sprite_fetch_enable) {
-    //                read(vram_addr.get_at_addr(), bkgr_next_attr);
-    //                //choose square from 4;
-    //                if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
-    //                if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
-    //                bkgr_next_attr &= 0x3;
-    //            }
-    //            break;
-    //        case 4:
-    //            break;
-    //        case 5://fetch low byte;
-    //            if (sprite_fetch_enable) {
-    //                //TODO
-    //            }
-    //            else {
-    //                bkgr_addr = get_bkgr_patt_addr();
-    //                read(bkgr_addr, bkgr_next_lsb);
-    //            }
-    //            break;
-    //        case 6:
-    //            break;
-    //        case 7://fetch high byte;
-    //            if (sprite_fetch_enable) {
-    //                //TODO
-    //            }
-    //            else {
-    //                bkgr_addr |= 0x0008;//set plane bit to access high byte;
-    //                read(bkgr_addr, bkgr_next_msb);
-    //            }
-    //            break;
-    //        default:
-    //            break;
-    //        }
-    //    }
-    //    else if (cycle == 339)
-    //        read(vram_addr.get_nt_addr(), bkgr_next_id);
-    //
-    //}
 
     void PPU::fetch_bkgr_tile() {
         switch (cycle & 0x7) {
@@ -594,10 +572,10 @@ namespace nes {
                             if (cycle < 256 && (bkgr_pixel > 0) && sp0_present && ppu_mask.bkgr_enable) {
                                 if (cycle <= 8) {
                                     if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
-                                        ppu_status.sprite_hit = 1;
+                                        sp0_hit_flag = true;
                                 }
                                 else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
-                                    ppu_status.sprite_hit = 1;
+                                    sp0_hit_flag = true;
                                 }
                             }
                         }
@@ -688,6 +666,7 @@ namespace nes {
         case 2 : //$2002 : PPU status reg;
             //only upper 3 bits of ppu_status is effective;
             //lower 5 bits is the "noise" from ppu data buffer; actually it's PPU open bus;
+            ppu_status.sprite_hit = sp0_hit_flag;
             data = (ppu_status & 0xe0) | (ppu_data & 0x1f); //"Read PPUSTATUS: Return old status of NMI_occurred in bit 7,
             ppu_status.vblank_flag = 0;                     //  then set NMI_occurred to false."
             nmi_out = false;//immediately pull back nmi_out;
@@ -755,10 +734,18 @@ namespace nes {
                     fine_x = data & 0x7;//low 3 bits;
                 //}
                 temp_addr.coarse_x = data >> 3;//high 5 bits;
+#ifdef L_MODE
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle 
+                    << " w1 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
+#endif
             }
             else {
                 temp_addr.fine_y = data & 0x7;//low 3 bits;
                 temp_addr.coarse_y = data >> 3;//high 5 bits;
+#ifdef L_MODE
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle
+                    << " w2 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
+#endif
             }
             is_first_write = !is_first_write;
             break;
@@ -771,6 +758,12 @@ namespace nes {
             else {
                 temp_addr.low_byte = data;//all 8 bits;
                 vram_addr.val = temp_addr.val;//After temp_addr is updated, contents copied into vram_addr;
+#ifdef L_MODE
+                if ((temp_addr.val & 0x1000) > 0) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle
+                        << " w2 $2006 (0x" << std::hex << temp_addr.val << "); MMC3 should count" << std::endl;
+                }
+#endif
             }
             is_first_write = !is_first_write;
             break;
@@ -795,14 +788,29 @@ namespace nes {
             data &= greyscale_mask;
             return true;
         }
-        else if (addr >= 0x2000) {//$2000 - $3EFF : Name Table / Attribute Table;
-            //map $3XXX to $2XXX;
-            data = vram[mapper->get_nt_mirror(addr & 0x2fff)];
-            return true;
-        }
-        else {//$0000 - $1FFF : Pattern Table;
+        else {
+
+#ifdef L_MODE
+            if (addr < 0x2000) {
+                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                }
+                ppu_bus_latch = addr;
+            }
+#endif
+
             return mapper->ppu_read(addr, data);
         }
+
+        //else if (addr >= 0x2000) {//$2000 - $3EFF : Name Table / Attribute Table;
+        //    //map $3XXX to $2XXX;
+        //    data = vram[mapper->get_nt_mirror(addr & 0x2fff)]; 
+        //    return true;
+        //}
+        //else {//$0000 - $1FFF : Pattern Table;
+        //    return mapper->ppu_read(addr, data);
+        //}
+
         //Palette mapping:
         // 0000 0000
         // 0000 0001
@@ -839,13 +847,17 @@ namespace nes {
     }
 
     inline bool PPU::write(Word addr, Byte data){
-        if (addr < 0x2000) {
-            //Note: some cartridges may contain RAM that can be written;
+        //if (addr < 0x2000) {
+        //    //Note: some cartridges may contain RAM that can be written;
+        //    return mapper->ppu_write(addr, data);
+        //}
+        //else if (addr < 0x3F00) {//$2000 - $3EFF;
+        //    vram[mapper->get_nt_mirror(addr & 0x2fff)] = data;
+        //    return true;
+        //}
+
+        if (addr < 0x3F00) {
             return mapper->ppu_write(addr, data);
-        }
-        else if (addr < 0x3F00) {//$2000 - $3EFF;
-            vram[mapper->get_nt_mirror(addr & 0x2fff)] = data;
-            return true;
         }
         else {//$3F00 - $3FFF;
             addr &= ((addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
@@ -895,14 +907,16 @@ namespace nes {
 
         for (Word nt_y = 0; nt_y < 30; ++nt_y) {
             for (Word nt_x = 0; nt_x < 32; ++nt_x) {
-                Word nt_idx = vram[(sel << 10) | (nt_y * 32 + nt_x)];
-                Byte attrb = vram[(sel << 10) + (0x3C0 | (8 * (nt_y / 4) + (nt_x / 4)))];
+                Byte nt_idx = 0;
+                Byte attrb = 0;
+                read(kNAME_TBL_BASE | (sel << 10) | (nt_y * 32 + nt_x), nt_idx);
+                read(kATTR_TBL_BASE | (sel << 10) | (8 * (nt_y / 4) + (nt_x / 4)), attrb);
                 if ((nt_y & 0x3) > 1) attrb >>= 4;
                 if ((nt_x & 0x3) > 1) attrb >>= 2;
                 attrb &= 0x3;
                 for (Byte row = 0; row < 8; ++row) {
                     Byte low_group = 0, high_group = 0;
-                    Word pt_idx = ((Word)ppu_ctrl.bkgr_select << 12) | (nt_idx << 4) | row;
+                    Word pt_idx = ((Word)ppu_ctrl.bkgr_select << 12) | ((Word)nt_idx << 4) | row;
                     mapper->ppu_read(pt_idx & 0xfff7, low_group);//read pattern table for specific tile;
                     mapper->ppu_read(pt_idx | 0x0008, high_group);
                     for (Byte col = 0; col < 8; ++col) {
@@ -1000,6 +1014,7 @@ namespace nes {
         ppu_ctrl = 0;      //$2000
         ppu_mask = 0;      //$2001
         ppu_status = 0xa0; //$2002 The VBL flag (bit 7) is random at power, and unchanged by reset. It is next set around 27384, then around 57165.
+        sp0_hit_flag = false;
         //oam_addr = 0;    //$2003 unchanged by reset; changed during rendering and cleared at the end of normal rendering;
         //oam_data = 0;    //$2004 <- deleted;
         ppu_scroll = 0;    //$2005

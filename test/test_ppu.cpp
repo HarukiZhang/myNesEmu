@@ -9,6 +9,7 @@
 
 #include "CPU.h"
 #include "PPU.h"
+#include "Log.h"
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -29,7 +30,7 @@ public:
 	static constexpr int kRIGHT_COL = 518;
 	static constexpr int kSTATUS_BAR_X = 10;
 	static constexpr int kFPS_BAR_X = 600;
-	static constexpr int kSTATUS_BAR_Y = 730;
+	static constexpr int kSTATUS_BAR_Y = 750;
 	static constexpr int kOAM_N_LINE = 30;
 
 	Demo() { sAppName = "myNesEmu_test_ppu"; }
@@ -65,14 +66,24 @@ private:
 			Mega Man 2 (USA)
 			Metroid (USA)
 			Ninja Ryuuken Den (Japan)
-			Sangokushi - Chuugen no Hasha (Japan)
+			Sangokushi - Chuugen no Hasha (Japan)   X
 			Tetris (USA)                    ok
 
 			#002
 			DuckTales (USA)
+			Puyo Puyo (Japan)
+
+			#004
+			Mega Man 3 (USA)
+			Adventure Island II (USA)
+			Adventure Island 3 (USA)
+			Batman Returns (USA)
+			Double Dragon II - The Revenge (USA)    X
+			Mother (Japan)
+
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_001\\Tetris (USA).nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_004\\Double Dragon II - The Revenge (USA).nes")) {
 			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -100,8 +111,8 @@ private:
 		Clear(olc::DARK_BLUE);
 
 		mbus.controller[0] = 0x0;
-		mbus.controller[0] |= GetKey(olc::Key::J).bHeld ? nes::Button::A : 0x00;
-		mbus.controller[0] |= GetKey(olc::Key::K).bHeld ? nes::Button::B : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::K).bHeld ? nes::Button::A : 0x00;
+		mbus.controller[0] |= GetKey(olc::Key::J).bHeld ? nes::Button::B : 0x00;
 		mbus.controller[0] |= GetKey(olc::Key::SHIFT).bHeld ? nes::Button::SELECT : 0x00;
 		mbus.controller[0] |= GetKey(olc::Key::ENTER).bHeld ? nes::Button::START : 0x00;
 		mbus.controller[0] |= GetKey(olc::Key::W).bHeld ? nes::Button::UP : 0x00;
@@ -163,24 +174,25 @@ private:
 		//DrawSprite(256 + 2, 0, &ppu.get_bkgr(), 1);//only for check bkgr;
 
 		//Name Table:
-		DrawSprite(0, 480 + 2, &ppu.get_name_table(0), 1);
-		DrawSprite(256 + 2, 480 + 2, &ppu.get_name_table(1), 1);
+		DrawSprite(kRIGHT_COL,			 2,			&ppu.get_name_table(0), 1);
+		DrawSprite(kRIGHT_COL + 256 + 2, 2,			&ppu.get_name_table(1), 1);
+		DrawSprite(kRIGHT_COL,			 2 + 240 + 2,	&ppu.get_name_table(2), 1);
+		DrawSprite(kRIGHT_COL + 256 + 2, 2 + 240 + 2,	&ppu.get_name_table(3), 1);
 
 		if (bGridOn) draw_grid(0, 0);
 		//draw_cpu(kRIGHT_COL, 160);
 		//draw_code(kRIGHT_COL, 232, 20);
 
-		//Palette:
-		draw_palette(kRIGHT_COL, 140, pal_sel);
-
 		//Pattern Table:
-		DrawSprite(kRIGHT_COL, 5, &ppu.get_pattern_table(0, pal_sel), 1);
-		DrawSprite(kRIGHT_COL + 130, 5, &ppu.get_pattern_table(1, pal_sel), 1);
+		DrawSprite(2,				480 + 2, &ppu.get_pattern_table(0, pal_sel), 2);
+		DrawSprite(2 + 128 * 2 + 2, 480 + 2, &ppu.get_pattern_table(1, pal_sel), 2);
+		//Palette:
+		draw_palette(2,		480 + 2 + 128 * 2 + 2, pal_sel);
 
 		//OAM entries:
-		if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
-		if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < (64 - kOAM_N_LINE)) ++oam_start_line;
-		draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
+		//if (GetKey(olc::Key::UP).bPressed && oam_start_line > 0) --oam_start_line;
+		//if (GetKey(olc::Key::DOWN).bPressed && oam_start_line < (64 - kOAM_N_LINE)) ++oam_start_line;
+		//draw_oam(kRIGHT_COL, 160, oam_start_line, kOAM_N_LINE);
 
 		//FPS:
 		//draw_fps(kFPS_BAR_X, kSTATUS_BAR_Y);
@@ -312,8 +324,14 @@ Demo demo;
 
 
 int main() {
+
+	std::ofstream log_file{ "./test_ppu.log", std::ios_base::trunc };
+	if (log_file.is_open() && log_file.good()) {
+		nes::Log::get().set_log_stream(log_file);
+	}
+
 	t0 = SCLK::now();
-	demo.Construct(780, 780, 1, 1);
+	demo.Construct(1040, 780, 1, 1);
 	demo.Start();
 
 	return 0;

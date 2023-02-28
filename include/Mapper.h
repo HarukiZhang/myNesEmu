@@ -20,22 +20,27 @@ namespace nes {
         virtual bool ppu_read(Word addr, Byte &data) = 0;
         virtual bool ppu_write(Word addr, Byte data) = 0;
 
+        virtual bool irq_state() = 0;
+        virtual bool count_scanline() = 0;
+
         static std::shared_ptr<Mapper> create_mapper(Cartridge &r_cart);
 
         //name table mirroring mapping
-        Word get_nt_mirror(Word addr);
+        void init_nt_mirror();
 
-        Word mirror_horizontal(Word addr);
-        Word mirror_vertical(Word addr);
-        Word mirror_a_only(Word addr);//also called: one-screen lower bank;
-        Word mirror_b_only(Word addr);//also called: one-screen upper bank;
-        Word mirror_four_screen(Word addr);
+        Byte& mirror_horizontal(Word addr);
+        Byte& mirror_vertical(Word addr);
+        Byte& mirror_a_only(Word addr);//also called: one-screen lower bank;
+        Byte& mirror_b_only(Word addr);//also called: one-screen upper bank;
+        Byte& mirror_four_screen(Word addr);
 
     protected:
         //preserve a function pointer for derivatives;
-        Word (Mapper::*nt_mirror_map)(Word);
+        Byte& (Mapper::* nt_mirror_map)(Word);
 
         Cartridge *cart;
+
+        VRAM vram;//PPU Video-RAM;
     };
 
 };//end nes;
