@@ -68,10 +68,15 @@ private:
 			Ninja Ryuuken Den (Japan)
 			Sangokushi - Chuugen no Hasha (Japan)   X
 			Tetris (USA)                    ok
+			Chip 'n Dale - Rescue Rangers (USA)
 
 			#002
 			DuckTales (USA)
 			Puyo Puyo (Japan)
+
+			#003
+			Dragon Quest (Japan)
+			Solomon no Kagi (Japan)
 
 			#004
 			Mega Man 3 (USA)
@@ -83,7 +88,7 @@ private:
 
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_004\\Double Dragon II - The Revenge (USA).nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_000\\SMB.nes")) {
 			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {

@@ -5,11 +5,15 @@
 #include "Mapper_000.h"
 #include "Mapper_001.h"
 #include "Mapper_002.h"
+#include "Mapper_003.h"
 #include "Mapper_004.h"
 
 namespace nes {
 
-    Mapper::Mapper(Cartridge& _cart) : nt_mirror_map{nullptr}, cart{ &_cart }{}
+    Mapper::Mapper(Cartridge& _cart) 
+        : nt_mirror_map{nullptr}, cart{ &_cart }
+    {
+    }
 
     std::shared_ptr<Mapper> Mapper::create_mapper(Cartridge &r_cart){
         switch ( r_cart.get_header().n_mapper() ){
@@ -22,11 +26,14 @@ namespace nes {
         case Mapper_Type::UxROM :
             return std::make_shared<Mapper_002>(r_cart);
             break;
+        case Mapper_Type::CNROM:
+            return std::make_shared<Mapper_003>(r_cart);
+            break;
         case Mapper_Type::MMC3:
             return std::make_shared<Mapper_004>(r_cart);
             break;
         default :
-            std::cerr << "Mapper::create_mapper : Now, only Mapper 000, 001, 002, 004 is available." << std::endl;
+            std::cerr << "Mapper::create_mapper : Now, only Mapper 000, 001, 002, 003, 004 is available." << std::endl;
             return nullptr;
             break;
         }

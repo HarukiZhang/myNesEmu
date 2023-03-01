@@ -87,7 +87,7 @@ namespace nes {
 		NROM = 0x00,
 		MMC1 = 0x01,
 		UxROM = 0x02,
-		Mapper_003 = 0x03,
+		CNROM = 0x03,
 		MMC3 = 0x04,
 		// ...
 	};

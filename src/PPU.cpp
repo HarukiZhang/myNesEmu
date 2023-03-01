@@ -4,10 +4,10 @@
 #define S_MODE
 #define L_MODE
 
-#ifdef L_MODE
-#include "Mapper.h"
-#include "Mapper_004.h"
-#endif
+//#ifdef L_MODE
+//#include "Mapper.h"
+//#include "Mapper_004.h"
+//#endif
 
 namespace nes {
     
@@ -121,24 +121,24 @@ namespace nes {
                 (this->*micop_mtx[opcode])();
             }
 
-            //MMC3 scanline counter;
-            if (check_render_enabled() && cycle == 260) {
-#ifdef L_MODE
-                ++scanline_counter_counts;
-                const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
-                if (ptr->irq_reload) {
-                    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
-                        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
-                }
-
-                if (mapper->count_scanline()) {
-                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
-                }
-
-#else
-                mapper->count_scanline();
-#endif
-            }
+//            //MMC3 scanline counter;
+//            if (check_render_enabled() && cycle == 260) {
+//#ifdef L_MODE
+//                //++scanline_counter_counts;
+//                //const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
+//                //if (ptr->irq_reload) {
+//                //    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
+//                //        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
+//                //}
+//
+//                //if (mapper->count_scanline()) {
+//                //    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
+//                //}
+//
+//#else
+//                mapper->count_scanline();
+//#endif
+//            }
 
 
 #else
@@ -253,8 +253,8 @@ namespace nes {
                 scanline = 0;
                 ++frame;
 #ifdef L_MODE
-                LOG() << "[PPU] MMC1::counter counted " << std::dec << scanline_counter_counts << std::endl;
-                scanline_counter_counts = 0;
+                //LOG() << "[PPU] MMC1::counter counted " << std::dec << scanline_counter_counts << std::endl;
+                //scanline_counter_counts = 0;
                 LOG() << "[PPU]------------------ frame " << frame <<" -----------------------" << std::endl;
 #endif
                 frame_complete = true;//one frame rendering is complete;
@@ -577,6 +577,11 @@ namespace nes {
                                 else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
                                     sp0_hit_flag = true;
                                 }
+#ifdef L_MODE
+                                if (sp0_hit_flag) {
+                                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 hit!" << std::endl;
+                                }
+#endif
                             }
                         }
                         break;
@@ -672,6 +677,15 @@ namespace nes {
             nmi_out = false;//immediately pull back nmi_out;
             //reset address write toggle;
             is_first_write = false;
+#ifdef L_MODE
+            LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " CPU read $2002 (";
+            if (sp0_hit_flag) {
+                LOG() << "sp0 hit)" << std::endl;
+            }
+            else {
+                LOG() << "sp0 miss)" << std::endl;
+            }
+#endif
             break;
         case 4 : //$2004 : OAM data reg;
             data = oam[oam_addr];
@@ -758,12 +772,6 @@ namespace nes {
             else {
                 temp_addr.low_byte = data;//all 8 bits;
                 vram_addr.val = temp_addr.val;//After temp_addr is updated, contents copied into vram_addr;
-#ifdef L_MODE
-                if ((temp_addr.val & 0x1000) > 0) {
-                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle
-                        << " w2 $2006 (0x" << std::hex << temp_addr.val << "); MMC3 should count" << std::endl;
-                }
-#endif
             }
             is_first_write = !is_first_write;
             break;
@@ -857,6 +865,16 @@ namespace nes {
         //}
 
         if (addr < 0x3F00) {
+
+#ifdef L_MODE
+            if (addr < 0x2000) {
+                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                }
+                ppu_bus_latch = addr;
+            }
+#endif
+
             return mapper->ppu_write(addr, data);
         }
         else {//$3F00 - $3FFF;

@@ -1,8 +1,10 @@
 #include <iostream>
 
 #include "CPU.h"
+#include "Log.h"
 
-//#define S_MODE
+//#define S_MODE //which has already been defined at CPU.h;
+//#define L_MODE
 
 namespace nes {
 
@@ -186,10 +188,16 @@ namespace nes {
     }
 
     void CPU::clock(){
+#ifdef L_MODE
+        LOG() << "[CPU] ";
+#endif
         if (halt_needed && !oam_dma_running && !dmc_dma_running) {
             //performing halting takes 1 cycle;
             halt_needed = false;
             is_halt = true;
+#ifdef L_MODE
+            LOG() << "halt cycle ";
+#endif
         }
         else if (is_halt) {
             if (oam_dma_needed) {
@@ -198,6 +206,9 @@ namespace nes {
                 dma_counter = dma_offset = 0;
             }
             perform_dma();
+#ifdef L_MODE
+            LOG() << "DMA ";
+#endif
         }
         else {
 #ifdef S_MODE
@@ -249,6 +260,10 @@ namespace nes {
                 break;
             }
             detect_interrupt();
+#ifdef L_MODE
+            LOG() << instr_name_mtx[cur_opcode] << " ";
+#endif
+
 #else
             if (cycles == 0) {
                 if (nmi_pending) {
@@ -270,6 +285,10 @@ namespace nes {
                     P.U = 1;
                 }
             }
+#endif
+
+#ifdef L_MODE
+            LOG() << std::dec << cycles << std::endl;
 #endif
             cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
         }

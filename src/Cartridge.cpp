@@ -250,6 +250,16 @@ namespace nes {
                     proceed = true;
                 }
                 break;
+            case Mapper_Type::CNROM:
+                if (header.num_chr_rom > 4) {
+                    std::clog << "Cartridge::load_file : Mapper 003 mapping do not support CHR-ROM larger than 32 KiB now." << std::endl;
+                    proceed = false;
+                }
+                else {
+                    load_content(ifs);//Mapper_003 : PRG RAM capacity : None;
+                    proceed = true;
+                }
+                break;
             case Mapper_Type::MMC3:
                 load_content(ifs);//Mapper_004 : allocate PRG-RAM only when cart told so;
                 proceed = true;
