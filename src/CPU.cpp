@@ -4,7 +4,7 @@
 #include "Log.h"
 
 //#define S_MODE //which has already been defined at CPU.h;
-//#define L_MODE
+#define L_MODE
 
 namespace nes {
 
@@ -188,16 +188,10 @@ namespace nes {
     }
 
     void CPU::clock(){
-#ifdef L_MODE
-        LOG() << "[CPU] ";
-#endif
         if (halt_needed && !oam_dma_running && !dmc_dma_running) {
             //performing halting takes 1 cycle;
             halt_needed = false;
             is_halt = true;
-#ifdef L_MODE
-            LOG() << "halt cycle ";
-#endif
         }
         else if (is_halt) {
             if (oam_dma_needed) {
@@ -206,9 +200,6 @@ namespace nes {
                 dma_counter = dma_offset = 0;
             }
             perform_dma();
-#ifdef L_MODE
-            LOG() << "DMA ";
-#endif
         }
         else {
 #ifdef S_MODE
@@ -260,8 +251,17 @@ namespace nes {
                 break;
             }
             detect_interrupt();
+
 #ifdef L_MODE
-            LOG() << instr_name_mtx[cur_opcode] << " ";
+            if (cur_opcode == 0xD0) {//BNE
+                LOG() << "[CPU] " << instr_name_mtx[cur_opcode] << " " << std::dec << cycles;
+                if (phase == Instr_Phase::extra) {
+                    LOG() << "*" << std::endl;
+                }
+                else {
+                    LOG() << std::endl;
+                }
+            }
 #endif
 
 #else
@@ -285,10 +285,6 @@ namespace nes {
                     P.U = 1;
                 }
             }
-#endif
-
-#ifdef L_MODE
-            LOG() << std::dec << cycles << std::endl;
 #endif
             cycles--; //decrement to -1 from here will cause clock() unfunction for a while, so it should be prevented;
         }
@@ -411,6 +407,7 @@ namespace nes {
         cur_opcode = 0;
         temp_word = 0;
         temp_byte = 0;
+        old_PC = 0;
 
         irq_pending = false;
         nmi_pending = false;
@@ -830,12 +827,13 @@ namespace nes {
     }
 
     inline bool CPU::check_branch_cross() {
-        return (temp_word & 0xff00) != (PC & 0xff00);
+        return (old_PC & 0xff00) != (PC & 0xff00);
     }
 
     inline void CPU::branch(bool test) {
         if (test) {
             ++cycles;      //if branch suceeds;
+            old_PC = PC;//preseve old PC for check;
             PC += addr_rel;
             if (check_branch_cross())
                 ++cycles;

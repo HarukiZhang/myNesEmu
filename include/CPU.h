@@ -129,6 +129,7 @@ namespace nes {
         Word dma_offset = 0;
         Byte dma_data = 0;
 
+        Word old_PC = 0;//for checking branch page cross;
         Word temp_word = 0;
         Byte temp_byte = 0;
 

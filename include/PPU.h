@@ -4,6 +4,9 @@
 #include "olcPixelGameEngine.h"
 
 #include "Mapper.h"
+#include "Log.h"
+
+#define L_MODE
 
 namespace nes {
 
@@ -70,6 +73,9 @@ namespace nes {
                 sprt_x_counters[i] = 0xff;
                 sprt_attr_latches[i] = 0;
             }
+#ifdef L_MODE
+            LOG() << "[PPU] vblank finished" << std::endl;
+#endif
         }
         //rendering within scanline 1 to 240;
         void RENDER_N() {
