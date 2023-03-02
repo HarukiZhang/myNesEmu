@@ -2,13 +2,13 @@
 #include "Log.h"
 
 #define S_MODE
-#undef L_MODE
-#define L_MODE
+#undef T_SP0H
+#define T_SP0H
 
-//#ifdef L_MODE
-//#include "Mapper.h"
-//#include "Mapper_004.h"
-//#endif
+#ifdef TEST_MMC3
+#include "Mapper.h"
+#include "Mapper_004.h"
+#endif
 
 namespace nes {
     
@@ -122,24 +122,23 @@ namespace nes {
                 (this->*micop_mtx[opcode])();
             }
 
-//            //MMC3 scanline counter;
-//            if (check_render_enabled() && cycle == 260) {
-//#ifdef L_MODE
-//                //++scanline_counter_counts;
-//                //const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
-//                //if (ptr->irq_reload) {
-//                //    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
-//                //        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
-//                //}
-//
-//                //if (mapper->count_scanline()) {
-//                //    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
-//                //}
-//
-//#else
-//                mapper->count_scanline();
-//#endif
-//            }
+            //MMC3 scanline counter;
+            if (check_render_enabled() && cycle == 260) {
+#ifdef TEST_MMC3
+                ++scanline_counter_counts;
+                const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
+                if (ptr->irq_reload) {
+                    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
+                        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
+                }
+
+                if (mapper->count_scanline()) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
+                }
+#else
+                mapper->count_scanline();
+#endif
+            }
 
 
 #else
@@ -244,7 +243,7 @@ namespace nes {
         else if (scanline == 241 && cycle == 1) {
             ppu_status.vblank_flag = 1;
             if (ppu_ctrl.nmi_enable) nmi_out = true;//expect MainBus to find out;
-#ifdef L_MODE
+#ifdef T_SP0H
             LOG() << "[PPU] vblank starts" << std::endl;
 #endif
         }
@@ -256,7 +255,7 @@ namespace nes {
             if (scanline > 261) {
                 scanline = 0;
                 ++frame;
-#ifdef L_MODE
+#ifdef T_SP0H
                 //LOG() << "[PPU] MMC1::counter counted " << std::dec << scanline_counter_counts << std::endl;
                 //scanline_counter_counts = 0;
                 LOG() << "[PPU]------------------ frame "<< std::dec << frame <<" -----------------------" << std::endl;
@@ -296,9 +295,9 @@ namespace nes {
                     //find that sprite#0 has been in range;
                     if (eval_idx == 0) {
                         sp0_pres_nl = true;//inform the next scanline;
-//#ifdef L_MODE
-//                        LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
-//#endif
+#ifdef T_SP0H
+                        LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
+#endif
                     }
         case 1:
                     eval_state = 1;
@@ -584,12 +583,12 @@ namespace nes {
                             
                             first_being_rendered = true;
 
-//#ifdef L_MODE
-//                            if (sp0_present) {
-//                                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render " 
-//                                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority << std::endl;
-//                            }
-//#endif
+#ifdef T_SP0H
+                            if (sp0_present) {
+                                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render " 
+                                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority << std::endl;
+                            }
+#endif
 
                             if (cycle < 256 && (bkgr_pixel > 0) && sp0_present && ppu_mask.bkgr_enable) {
                                 if (cycle <= 8) {
@@ -599,11 +598,11 @@ namespace nes {
                                 else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
                                     sp0_hit_flag = true;
                                 }
-//#ifdef L_MODE
-//                                if (sp0_hit_flag) {
-//                                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 hit!" << std::endl;
-//                                }
-//#endif
+#ifdef T_SP0H
+                                if (sp0_hit_flag) {
+                                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 hit!" << std::endl;
+                                }
+#endif
                             }
                         }
                         break;
@@ -614,9 +613,9 @@ namespace nes {
 
         //if (cycle < 256) {//not detect at x == 255;
         //    if (bkgr_pixel && sprt_pixel) {//if both are opaque;
-
+        //
         //        if (sp0_present && first_being_rendered) {//if sp0 is being rendered;
-
+        //
         //            if (ppu_mask.bkgr_enable && ppu_mask.spr_enable) {//only when both BG and SP are visible;
         //                
         //                if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
@@ -672,13 +671,15 @@ namespace nes {
             }
         }
 
-        //only need to set pixel within visible scanlines * background rendering cycles;
-        //Because visible field is (1,1) to (256, 240), so need to map it a little bit;
+        //Note: the first pixel rendered starting from cycle 1, 
+        //  it should be mapped to 0 relative to the screen coordinate;
+        //Note: my implementation set the visible field starting from scanline 1,
+        //  1 should be subtracted from the current number of scanline to fit the screen;
         spr_screen.SetPixel(cycle - 1, scanline - 1, get_color(output_attrb, output_pixel));
 
 
-        //debug:
-        bkgr_screen.SetPixel(cycle - 1, scanline - 1, get_color(bkgr_attrb, bkgr_pixel));
+        //debug: a scrolling background without sprite;
+        //bkgr_screen.SetPixel(cycle - 1, scanline - 1, get_color(bkgr_attrb, bkgr_pixel));
 
         return;
     }
@@ -699,15 +700,15 @@ namespace nes {
             nmi_out = false;//immediately pull back nmi_out;
             //reset address write toggle;
             is_first_write = false;
-//#ifdef L_MODE
-//            LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " CPU read $2002 (sp0 ";
-//            if (sp0_hit_flag) {
-//                LOG() << "hit)" << std::endl;
-//            }
-//            else {
-//                LOG() << "miss)" << std::endl;
-//            }
-//#endif
+#ifdef T_SP0H
+            LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " CPU read $2002 (sp0 ";
+            if (sp0_hit_flag) {
+                LOG() << "hit)" << std::endl;
+            }
+            else {
+                LOG() << "miss)" << std::endl;
+            }
+#endif
             break;
         case 4 : //$2004 : OAM data reg;
             data = oam[oam_addr];
@@ -753,14 +754,14 @@ namespace nes {
             ppu_mask = data;
             greyscale_mask = ppu_mask.greyscale ? 0x30 : 0xff;
 
-//#ifdef L_MODE
-//            LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " mask change: ";
-//            if (ppu_mask.bkgr_enable) LOG() << "BG ";
-//            else LOG() << "bg ";
-//            if (ppu_mask.spr_enable) LOG() << "SP ";
-//            else LOG() << "sp ";
-//            LOG() << std::endl;
-//#endif
+#ifdef T_SP0H
+            LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " mask change: ";
+            if (ppu_mask.bkgr_enable) LOG() << "BG ";
+            else LOG() << "bg ";
+            if (ppu_mask.spr_enable) LOG() << "SP ";
+            else LOG() << "sp ";
+            LOG() << std::endl;
+#endif
 
             break;
         case 3 : //$2003 : OAM address reg;
@@ -780,18 +781,18 @@ namespace nes {
                     fine_x = data & 0x7;//low 3 bits;
                 //}
                 temp_addr.coarse_x = data >> 3;//high 5 bits;
-//#ifdef L_MODE
-//                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle 
-//                    << " w1 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
-//#endif
+#ifdef T_SP0H
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle 
+                    << " w1 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
+#endif
             }
             else {
                 temp_addr.fine_y = data & 0x7;//low 3 bits;
                 temp_addr.coarse_y = data >> 3;//high 5 bits;
-//#ifdef L_MODE
-//                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle
-//                    << " w2 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
-//#endif
+#ifdef T_SP0H
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle
+                    << " w2 $2005 (-> 0x" << std::hex << temp_addr.val << ")" << std::endl;
+#endif
             }
             is_first_write = !is_first_write;
             break;
@@ -830,14 +831,14 @@ namespace nes {
         }
         else {
 
-//#ifdef L_MODE
-//            if (addr < 0x2000) {
-//                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
-//                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
-//                }
-//                ppu_bus_latch = addr;
-//            }
-//#endif
+#ifdef TEST_MMC3
+            if (addr < 0x2000) {
+                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                }
+                ppu_bus_latch = addr;
+            }
+#endif
 
             return mapper->ppu_read(addr, data);
         }
@@ -898,14 +899,14 @@ namespace nes {
 
         if (addr < 0x3F00) {
 
-//#ifdef L_MODE
-//            if (addr < 0x2000) {
-//                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
-//                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
-//                }
-//                ppu_bus_latch = addr;
-//            }
-//#endif
+#ifdef TEST_MMC3
+            if (addr < 0x2000) {
+                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                }
+                ppu_bus_latch = addr;
+            }
+#endif
 
             return mapper->ppu_write(addr, data);
         }
@@ -949,9 +950,9 @@ namespace nes {
         return spr_screen;
     }
 
-    olc::Sprite& PPU::get_bkgr() {
-        return bkgr_screen;
-    }
+    //olc::Sprite& PPU::get_bkgr() {
+    //    return bkgr_screen;
+    //}
 
     olc::Sprite& PPU::get_name_table(Word sel) {
 
@@ -1040,6 +1041,10 @@ namespace nes {
 
     inline bool PPU::check_in_range(Byte y_coord){
         //sprite_size = 8 or 16;
+        //Note: my implementation set visible field coordinate starting from scanline 1 (y),
+        //  which means when checking sprite-in-range, 1 should be added to the y coordinate of the sprite
+        //  to fit the shifted visible field;
+        y_coord += 1;
         return (y_coord <= scanline) && (y_coord + sprite_size > scanline);
     }
 

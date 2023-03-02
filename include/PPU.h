@@ -6,7 +6,7 @@
 #include "Mapper.h"
 #include "Log.h"
 
-#define L_MODE
+#define T_SP0H
 
 namespace nes {
 
@@ -33,7 +33,7 @@ namespace nes {
         bool is_frame_complete();
         olc::Sprite& get_pattern_table(Byte tb_sel, Byte palette);
         std::string get_obj_attr_ent(Word index);
-        olc::Sprite& get_bkgr();
+        //olc::Sprite& get_bkgr();
         olc::Sprite& get_name_table(Word sel);
 
     private:
@@ -73,7 +73,7 @@ namespace nes {
                 sprt_x_counters[i] = 0xff;
                 sprt_attr_latches[i] = 0;
             }
-#ifdef L_MODE
+#ifdef T_SP0H
             LOG() << "[PPU] vblank finished" << std::endl;
 #endif
         }
@@ -261,7 +261,8 @@ namespace nes {
         olc::Pixel  pal_screen[0x40];//system palette
         olc::Sprite spr_screen{ 256, 240 };//main composite screen;
         olc::Sprite spr_pattern_table[2] = { {128, 128}, {128, 128} };
-        olc::Sprite bkgr_screen{ 256, 240 };//only used for debugging, to check the background;
+
+        //olc::Sprite bkgr_screen{ 256, 240 };//only used for debugging, to check the background;
         olc::Sprite nt_screen{ 256, 240 };//only used for debugging;
         
         //counters;

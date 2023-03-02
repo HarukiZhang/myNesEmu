@@ -4,7 +4,7 @@
 #include "Log.h"
 
 //#define S_MODE //which has already been defined at CPU.h;
-#define L_MODE
+//#define L_MODE
 
 namespace nes {
 

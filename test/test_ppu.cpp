@@ -88,7 +88,7 @@ private:
 
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\01.basics.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\03.corners.nes")) {
 			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {
