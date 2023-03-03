@@ -295,9 +295,6 @@ namespace nes {
                     //find that sprite#0 has been in range;
                     if (eval_idx == 0) {
                         sp0_pres_nl = true;//inform the next scanline;
-#ifdef T_SP0H
-                        LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
-#endif
                     }
         case 1:
                     eval_state = 1;
@@ -495,40 +492,43 @@ namespace nes {
     }
 
     inline Word PPU::get_sprt_addr() {
-        OBJ_ATTR& r_oa = sec_oam.ent[sprt_fetch_idx];
+        const OBJ_ATTR& r_oa = sec_oam.ent[sprt_fetch_idx];
+        
+        //Note: my coordinate starts from 1, so that the operand with scanline should add 1;
+        Word select = 0;
+        Word index = (Word)r_oa.index << 4;
+        Word offset = scanline - (r_oa.y_coord + 1);
+
         if (!ppu_ctrl.sprite_h) {//size 8*8
-            if (!r_oa.flip_v) {//not flipped vertically;
-                return ((Word)ppu_ctrl.spr_select << 12) 
-                    | ((Word)r_oa.index << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
-            }
-            else {//flipped vertically;
-                return ((Word)ppu_ctrl.spr_select << 12) 
-                    | ((Word)r_oa.index << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
-            }
+            select = (Word)ppu_ctrl.spr_select << 12;
         }
         else {//size 8*16
             //"For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number."
-            if (!sec_oam.ent[sprt_fetch_idx].flip_v) {
-                if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the top half;
-                    return (((Word)r_oa.index & 0x1) << 12) 
-                        | (((Word)r_oa.index & 0xfe) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
-                }
-                else {//at bottom half;
-                    return (((Word)r_oa.index & 0x1) << 12) 
-                        | ((((Word)r_oa.index & 0xfe) + 1) << 4) | ((Word)(scanline - r_oa.y_coord) & 0x0007);
-                }
-            }
-            else {
-                if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
-                    return (((Word)r_oa.index & 0x1) << 12) 
-                        | ((((Word)r_oa.index & 0xfe) + 1) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
-                }
-                else {//at bottom half;
-                    return (((Word)r_oa.index & 0x1) << 12) 
-                        | (((Word)r_oa.index & 0xfe) << 4) | ((Word)(7 - (scanline - r_oa.y_coord)) & 0x0007);
-                }
-            }
+            select = ((Word)r_oa.index & 0x1) << 12;
+
+            if (r_oa.flip_v) index ^= 0x0010;
+            if (offset < 8)  index ^= 0x0010;
+
+
+            //if (!r_oa.flip_v) {//not flipped vertically;
+            //    if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
+            //        return select | (index & 0x0fe0) | offset;
+            //    }
+            //    else {//at bottom half;
+            //        return select |  index           | offset;
+            //    }
+            //}
+            //else {//flipped vertically;
+            //    if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
+            //        return select |  index           | offset;
+            //    }
+            //    else {//at bottom half;
+            //        return select | (index & 0x0fe0) | offset;
+            //    }
+            //}
         }
+        if (r_oa.flip_v) offset = 7 - (offset & 0x0007);//if flipped vertically;
+        return select | index | offset;
     }
 
 
@@ -575,35 +575,13 @@ namespace nes {
                     sprt_pixel |= static_cast<Byte>((sprt_shifters_hi[i] & 0x80) > 0) << 1;
                     sprt_attrb = (sprt_attr_latches[i] & 0x3) + 0x04;//point to sprite palettes;
                     sprt_priority = sprt_attr_latches[i] & 0x20;//0: in front of background; 1: behind background
-                    if (sprt_pixel != 0) {//if the sprite is not transparent;
 
-                        //if sp0 is in the sec oam, then it must be put at the first place in sec oam;
-                        
+                    //pick up the first opaque sprite from sec oam, and ignore the rest;
+                    if (sprt_pixel != 0) {
+                        //prepare for sprite#0 hit check;
                         if (i == 0) {//if the first sprite in sec oam is being rendered;
-                            
+                            //if sp0 is in the sec oam, then it must be put at the first place in sec oam;
                             first_being_rendered = true;
-
-#ifdef T_SP0H
-                            if (sp0_present) {
-                                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render " 
-                                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority << std::endl;
-                            }
-#endif
-
-                            if (cycle < 256 && (bkgr_pixel > 0) && sp0_present && ppu_mask.bkgr_enable) {
-                                if (cycle <= 8) {
-                                    if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
-                                        sp0_hit_flag = true;
-                                }
-                                else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
-                                    sp0_hit_flag = true;
-                                }
-#ifdef T_SP0H
-                                if (sp0_hit_flag) {
-                                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 hit!" << std::endl;
-                                }
-#endif
-                            }
                         }
                         break;
                     }
@@ -611,6 +589,7 @@ namespace nes {
             }
         }
 
+        //old version of sprite 0 hit check
         //if (cycle < 256) {//not detect at x == 255;
         //    if (bkgr_pixel && sprt_pixel) {//if both are opaque;
         //
@@ -634,6 +613,55 @@ namespace nes {
             if (!ppu_mask.spr_col_enable) {
                 sprt_pixel = 0;
             }
+        }
+
+        //independent sprite#0 hit check:
+        if (sp0_present && first_being_rendered) {
+            //Note: first_being_rendered actually == (ppu_mask.spr_enable && sprt_pixel > 0 && i == 0);
+#ifdef T_SP0H
+            if (sprite_pixel_count < 8) {
+                //no matter sp0 and bg are opaque or transparent, show the infos;
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render "
+                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority;
+            }
+#endif
+            if (!sp0_hit_flag) {
+
+                if ((sprt_pixel > 0) && (bkgr_pixel > 0)) {
+
+                    //if ((cycle < 256) && ppu_mask.bkgr_enable) {
+                    //Note: if ppu_mask.bkgr_enable == 0, then bkgr_pixel must be 0; so no need to double check bkgr_enable flag;
+                    //      Same for ppu_mask.sprt_enable;
+                    if (cycle < 256) {
+                        //Note: Since it is already checked above the left-column clipping window,
+                        //      ie, if clipping happened, then correspond _pixel var will be changed to 0,
+                        //      it turns out that no need to double-check flags;
+
+                        sp0_hit_flag = true;
+
+                        //if (cycle <= 8) {
+                        //    if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
+                        //        sp0_hit_flag = true;
+                        //    //either bg or sp left-clipping is happenning, sp0hit wont occur;
+                        //}
+                        //else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
+                        //    sp0_hit_flag = true;
+                        //}
+
+
+#ifdef T_SP0H
+                        if (sp0_hit_flag)
+                            LOG() << " <-- sp0 hit at scrn pix coord (" << (int)(cycle - 1) << "," << (int)(scanline - 1) << ")";
+#endif
+                    }
+                }
+            }
+
+#ifdef T_SP0H
+            if (sprite_pixel_count < 8) LOG() << std::endl;
+            ++sprite_pixel_count;
+#endif
+
         }
 
         //Priority multiplexer decision table
@@ -1039,12 +1067,14 @@ namespace nes {
         return str;
     }
 
-    inline bool PPU::check_in_range(Byte y_coord){
+    inline bool PPU::check_in_range(Word y_coord){
         //sprite_size = 8 or 16;
-        //Note: my implementation set visible field coordinate starting from scanline 1 (y),
+        //Note : my implementation set visible field coordinate starting from scanline 1 (y),
         //  which means when checking sprite-in-range, 1 should be added to the y coordinate of the sprite
         //  to fit the shifted visible field;
-        y_coord += 1;
+        //Note2: range of sprite y_coord is 0 ~ 255;
+        //  use Word to receive y_coord to prevent from overflow to 0;
+        y_coord = (y_coord & 0x00ff) + 0x0001;
         return (y_coord <= scanline) && (y_coord + sprite_size > scanline);
     }
 

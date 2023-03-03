@@ -46,7 +46,7 @@ namespace nes {
         void update_bkgr_shifters();
         void update_sprt_shifters();
         
-        bool check_in_range(Byte y_coord);
+        bool check_in_range(Word y_coord);
         Word get_bkgr_patt_addr();
         Word get_sprt_addr();
         bool check_render_enabled();
@@ -176,6 +176,9 @@ namespace nes {
             sprt_num = soam_idx;
             soam_idx = 0;
             sprt_fetch_idx = 0;
+#ifdef T_SP0H
+            if (sp0_pres_nl) LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
+#endif
             sp0_present = sp0_pres_nl;
             sp0_pres_nl = false;
             for (Byte i = 0; i < 8; ++i) {
@@ -184,6 +187,8 @@ namespace nes {
                 sprt_x_counters[i] = 0xff;
                 sprt_attr_latches[i] = 0;
             }
+            //debug:
+            sprite_pixel_count = 0;
         }
         //increment y scroll for pre-render line;
         void INC_VT_P() {
@@ -336,8 +341,9 @@ namespace nes {
         Byte output_attrb = 0;
 
         //debug:
-        Word scanline_counter_counts = 0;
-        Word ppu_bus_latch = 0;
+        Word scanline_counter_counts = 0;//for MMC3
+        Word ppu_bus_latch = 0;//for MMC3
+        Byte sprite_pixel_count = 0;
 
         std::shared_ptr<Mapper> mapper = nullptr;
 
