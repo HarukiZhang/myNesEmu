@@ -107,8 +107,8 @@ namespace nes {
         case 0x5 :
             {
                 if (addr == 0x4014){
-                    //writing to $4014 will trigger OAM DMA;
-                    ppu->oam_addr = 0;//is this clear effective?
+                    // Writing to $4014 will trigger OAM DMA;
+                    // Clear oam_addr should be performed by program by writing to $2003;
                     cpu->oam_halt(data);
                 }
                 else if (addr >= 0x4016 && addr <= 0x4017) {

@@ -4,9 +4,6 @@
 #include "olcPixelGameEngine.h"
 
 #include "Mapper.h"
-#include "Log.h"
-
-#define T_SP0H
 
 namespace nes {
 
@@ -14,7 +11,7 @@ namespace nes {
     class MainBus;
 
     class PPU {
-        friend class MainBus;//for mainbus to access oam memory within ppu;
+        friend class MainBus;//for mainbus to access oam memory within ppu; also for checking nmi state and clearing oam addr;
     public:
         PPU();
         ~PPU();
@@ -27,7 +24,7 @@ namespace nes {
         void reset();
 
         olc::Sprite& get_screen();
-        olc::Pixel& get_color(Byte palet, Byte pixel);
+        olc::Pixel& get_color(Byte palet, Byte pixel);//after debug, it should be put onto private:
 
         //debug:
         bool is_frame_complete();
@@ -37,8 +34,8 @@ namespace nes {
         olc::Sprite& get_name_table(Word sel);
 
     private:
-        void fetch_bkgr_tile();
-        void fetch_sprt_tile();
+        //void fetch_bkgr_tile(); <-- deprecated;
+        //void fetch_sprt_tile(); <-- deprecated;
         void render_pixel();
         void clear_sec_oam();
         void eval_sprite();
@@ -55,195 +52,53 @@ namespace nes {
         void fetch_at_tile();
         void fetch_bg_tile();
         void fetch_sp_tile();
+
+        void check_sp0_hit();
     
         //micro operations:
         using MICOP = void(PPU::*)(void);
-
-        void IDLE_DOT() {}
-        //clear flags in ppu_status + shut down nmi;
-        void CLR_FLAG() {
-            IN_FE_NT();
-            ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
-            sp0_hit_flag = false;
-            nmi_out = false;
-            //clear sprite rendering buffers;
-            for (Byte i = 0; i < 8; ++i) {
-                sprt_shifters_lo[i] = 0;
-                sprt_shifters_hi[i] = 0;
-                sprt_x_counters[i] = 0xff;
-                sprt_attr_latches[i] = 0;
-            }
-#ifdef T_SP0H
-            LOG() << "[PPU] vblank finished" << std::endl;
-#endif
-        }
+        //idle dot of every cycle 0;
+        void IDLE_DOT();
+        //clear ppu_status + shut down nmi + clear sprite buffers;
+        void CLR_FLAG();
         //rendering within scanline 1 to 240;
-        void RENDER_N() {
-            if (!check_render_enabled()) return;
-            render_pixel();
-            update_bkgr_shifters();
-            update_sprt_shifters();
-        }
+        void RENDER_N();
         //invisible nametable fetches;
-        void IN_FE_NT() {
-            if (!check_render_enabled()) return;
-            load_bkgr_shifters();
-            fetch_nt_tile();
-            if (cycle == 337) return;
-            update_bkgr_shifters();
-            update_bkgr_shifters();
-        }
+        void IN_FE_NT();
         //invisible attrtable fetches;
-        void IN_FE_AT() {
-            if (!check_render_enabled()) return;
-            fetch_at_tile();
-            update_bkgr_shifters();
-            update_bkgr_shifters();
-        }
+        void IN_FE_AT();
         //invisible background tile fetches from pattTable;
-        void IN_FE_BG() {
-            if (!check_render_enabled()) return;
-            fetch_bg_tile();
-            update_bkgr_shifters();
-            update_bkgr_shifters();
-        }
+        void IN_FE_BG();
         //visible nametable fetches with clearing sec oam;
-        void V_F_N_CS() {
-            if (!check_render_enabled()) return;
-            load_bkgr_shifters();
-            fetch_nt_tile();
-            RENDER_N();
-            clear_sec_oam();
-        }
+        void V_F_N_CS();
         //visible attrtable fetches with clearing sec oam;
-        void V_F_A_CS() {
-            if (!check_render_enabled()) return;
-            fetch_at_tile();
-            RENDER_N();
-            clear_sec_oam();
-        }
+        void V_F_A_CS();
         //visible background tile fetches with clearing sec oam;
-        void V_F_B_CS() {
-            if (!check_render_enabled()) return;
-            fetch_bg_tile();
-            RENDER_N();
-            clear_sec_oam();
-        }
+        void V_F_B_CS();
         //visible nametable fetches with sprite evaluation;
-        void V_F_N_SE() {
-            if (!check_render_enabled()) return;
-            load_bkgr_shifters();
-            fetch_nt_tile();
-            RENDER_N();
-            eval_sprite();
-            //visible nametable fetches with clearing sec oam;
-        }
+        void V_F_N_SE();
         //visible attrtable fetches with sprite evaluation;
-        void V_F_A_SE() {
-            if (!check_render_enabled()) return;
-            fetch_at_tile();
-            RENDER_N();
-            eval_sprite();
-        }
+        void V_F_A_SE();
         //visible background tile fetches with sprite evaluation;
-        void V_F_B_SE() {
-            if (!check_render_enabled()) return;
-            fetch_bg_tile();
-            RENDER_N();
-            eval_sprite();
-        }
+        void V_F_B_SE();
         //increment x scroll;
-        void INC_HORI() {
-            if (!check_render_enabled()) return;
-            RENDER_N();
-            vram_addr.inc_hori();
-        }
+        void INC_HORI();
         //increment x scroll for pre-render line;
-        void INC_HR_P() {
-            if (!check_render_enabled()) return;
-            vram_addr.inc_hori();
-        }
+        void INC_HR_P();
         //increment y scroll;
-        void INC_VERT() {
-            //cycle 256, the last visible cycle;
-            if (!check_render_enabled()) return;
-            //no need to eval sprite in this dot;
-            RENDER_N();
-            vram_addr.inc_hori();
-            vram_addr.inc_vert();
-            //need to clear for every scanline;
-            eval_state = eval_idx = eval_off = 0;
-            sprt_num = soam_idx;
-            soam_idx = 0;
-            sprt_fetch_idx = 0;
-#ifdef T_SP0H
-            if (sp0_pres_nl) LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
-#endif
-            sp0_present = sp0_pres_nl;
-            sp0_pres_nl = false;
-            for (Byte i = 0; i < 8; ++i) {
-                sprt_shifters_lo[i] = 0;
-                sprt_shifters_hi[i] = 0;
-                sprt_x_counters[i] = 0xff;
-                sprt_attr_latches[i] = 0;
-            }
-            //debug:
-            sprite_pixel_count = 0;
-        }
+        void INC_VERT();
         //increment y scroll for pre-render line;
-        void INC_VT_P() {
-            if (!check_render_enabled()) return;
-            vram_addr.inc_hori();
-            vram_addr.inc_vert();
-            //need to clear for every scanline;
-            eval_state = eval_idx = eval_off = 0;
-            sprt_num = soam_idx;
-            soam_idx = 0;
-            sprt_fetch_idx = 0;
-            sp0_present = sp0_pres_nl;
-            sp0_pres_nl = false;
-            for (Byte i = 0; i < 8; ++i) {
-                sprt_shifters_lo[i] = 0;
-                sprt_shifters_hi[i] = 0;
-                sprt_x_counters[i] = 0xff;
-                sprt_attr_latches[i] = 0;
-            }
-        }
+        void INC_VT_P();
         //sprite tile fetches at cycle 257 to 320;
-        void SP_FETCH() {
-            if (!check_render_enabled()) return;
-            fetch_sp_tile();
-        }
+        void SP_FETCH();
         //reset x scroll;
-        void RST_HORI() {
-            //at cycle 257;
-            if (!check_render_enabled()) return;
-            //no need to fetch sprite tile;
-            update_sprt_shifters();
-            vram_addr.reset_hori(temp_addr);
-            if (scroll_updated_while_rendering) {
-                scroll_updated_while_rendering = false;
-                fine_x = temp_fine_x;
-            }
-        }
+        void RST_HORI();
         //reset y scroll;
-        void RST_VERT() {
-            //only need to reset at cycle 280 and 304;
-            if (!check_render_enabled()) return;
-            vram_addr.reset_vert(temp_addr);
-        }
+        void RST_VERT();
         //the 339 dot at pre-render line;
-        void ODD_SKIP() {
-            if (check_render_enabled()) {
-                fetch_nt_tile();
-            }
-            ++cycle;//odd frame skip;
-        }
+        void ODD_SKIP();
         //the visible zone version of 339 dot;
-        void FET_NT_N() {
-            if (!check_render_enabled()) return;
-            fetch_nt_tile();
-        }
+        void FET_NT_N();
 
     private:
         //PPU I/O Registers:

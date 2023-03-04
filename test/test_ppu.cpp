@@ -39,8 +39,7 @@ private:
 		/*
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\nestest\\nestest.nes
 			D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\01.basics.nes
-			D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_001\\.nes
-			D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_002\\.nes
+			D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_000\\SMB.nes
 
 			#000
 			SMB             OK
@@ -85,10 +84,11 @@ private:
 			Batman Returns (USA)
 			Double Dragon II - The Revenge (USA)    X
 			Mother (Japan)
+			Ninja Ryuuken Den III - Yomi no Hakobune (Japan)
 
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\test_roms\\sprite_hit_tests\\09.timing_basics.nes")) {
+		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_004\\Ninja Ryuuken Den III - Yomi no Hakobune (Japan).nes")) {
 			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {

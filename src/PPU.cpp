@@ -2,8 +2,7 @@
 #include "Log.h"
 
 #define S_MODE
-#undef T_SP0H
-#define T_SP0H
+//#define T_SP0H
 
 #ifdef TEST_MMC3
 #include "Mapper.h"
@@ -363,49 +362,51 @@ namespace nes {
 #endif
     }
 
-    void PPU::fetch_bkgr_tile() {
-        switch (cycle & 0x7) {
-        case 0://for 8th cycles; but not for the absolute 0 cycle. which is idle;
-            vram_addr.inc_hori();
-            break;
-        case 1://fetch name table byte;
-            load_bkgr_shifters();
-            read(vram_addr.get_nt_addr(), bkgr_next_id);
-            break;
-        case 2://just do nothing;
-            break;
-        case 3://fetch attribute table byte;
-            read(vram_addr.get_at_addr(), bkgr_next_attr);
-            //choose square from 4;
-            if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
-            if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
-            bkgr_next_attr &= 0x3;
-            break;
-        case 4://just do nothing;
-            break;
-        case 5://fetch background tile low byte;
-            bkgr_addr = get_bkgr_patt_addr();
-            read(bkgr_addr, bkgr_next_lsb);
-            break;
-        case 6://just do nothing;
-            break;
-        default://for 7th cycles : fetch background tile high byte;
-            bkgr_addr |= 0x0008;//set plane bit to access high byte;
-            read(bkgr_addr, bkgr_next_msb);
-            break;
-        }
-    }
+    //void PPU::fetch_bkgr_tile() {
+    //    switch (cycle & 0x7) {
+    //    case 0://for 8th cycles; but not for the absolute 0 cycle. which is idle;
+    //        vram_addr.inc_hori();
+    //        break;
+    //    case 1://fetch name table byte;
+    //        load_bkgr_shifters();
+    //        read(vram_addr.get_nt_addr(), bkgr_next_id);
+    //        break;
+    //    case 2://just do nothing;
+    //        break;
+    //    case 3://fetch attribute table byte;
+    //        read(vram_addr.get_at_addr(), bkgr_next_attr);
+    //        //choose square from 4;
+    //        if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
+    //        if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
+    //        bkgr_next_attr &= 0x3;
+    //        break;
+    //    case 4://just do nothing;
+    //        break;
+    //    case 5://fetch background tile low byte;
+    //        bkgr_addr = get_bkgr_patt_addr();
+    //        read(bkgr_addr, bkgr_next_lsb);
+    //        break;
+    //    case 6://just do nothing;
+    //        break;
+    //    default://for 7th cycles : fetch background tile high byte;
+    //        bkgr_addr |= 0x0008;//set plane bit to access high byte;
+    //        read(bkgr_addr, bkgr_next_msb);
+    //        break;
+    //    }
+    //}
 
-    void PPU::fetch_nt_tile(){
+    inline void PPU::fetch_nt_tile(){
         read(vram_addr.get_nt_addr(), bkgr_next_id);
     }
-    void PPU::fetch_at_tile(){
+
+    inline void PPU::fetch_at_tile(){
         read(vram_addr.get_at_addr(), bkgr_next_attr);
         //choose square from 4;
         if ((vram_addr.coarse_y & 0x3) > 1) bkgr_next_attr >>= 4;
         if ((vram_addr.coarse_x & 0x3) > 1) bkgr_next_attr >>= 2;
         bkgr_next_attr &= 0x3;
     }
+
     void PPU::fetch_bg_tile(){
         if (!fetch_toggle) {
             bkgr_addr = get_bkgr_patt_addr();
@@ -417,6 +418,7 @@ namespace nes {
         }
         fetch_toggle = !fetch_toggle;
     }
+
     void PPU::fetch_sp_tile(){
         auto flip_hori = [](Byte b) {
             b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
@@ -449,47 +451,102 @@ namespace nes {
         }
     }
 
-    void PPU::fetch_sprt_tile() {
-        auto flip_hori = [](Byte b) {
-            b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
-            b = (b & 0xcc) >> 2 | (b & 0x33) << 2;
-            b = (b & 0xaa) >> 1 | (b & 0x55) << 1;
-            return b;
-        };
+    inline void PPU::check_sp0_hit()
+    {
+        //independent sprite#0 hit check:
+        if (sp0_present && first_being_rendered) {
+            //Note: first_being_rendered actually == (ppu_mask.spr_enable && sprt_pixel > 0 && i == 0);
+#ifdef T_SP0H
+            if (sprite_pixel_count < 8) {
+                //no matter sp0 and bg are opaque or transparent, show the infos;
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render "
+                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority;
+            }
+#endif
+            if (!sp0_hit_flag) {
 
-        switch (cycle & 0x7) {
-        case 1:
-            read(vram_addr.get_nt_addr(), bkgr_next_id);
-            break;
-        case 3:
-            read(vram_addr.get_at_addr(), bkgr_next_attr);
-            break;
-        case 5:
-            if (sprt_fetch_idx < sprt_num) {
-                sprt_addr = get_sprt_addr();
-                read(sprt_addr, sprt_shifters_lo[sprt_fetch_idx]);
-                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
-                    sprt_shifters_lo[sprt_fetch_idx] = flip_hori(sprt_shifters_lo[sprt_fetch_idx]);
+                if ((sprt_pixel > 0) && (bkgr_pixel > 0)) {
+
+                    //if ((cycle < 256) && ppu_mask.bkgr_enable) {
+                    //Note: if ppu_mask.bkgr_enable == 0, then bkgr_pixel must be 0; so no need to double check bkgr_enable flag;
+                    //      Same for ppu_mask.sprt_enable;
+
+                    //Note: within micro op matrix, check_sp0_hit() is not arranged at cycle 256, so no need to duplicate the check;
+                    //if (cycle < 256) {
+                    
+                    //Note: Since the left-column clipping window is already checked above,
+                    //      ie, if clipping happened, then correspond _pixel var will be changed to 0,
+                    //      it turns out that no need to double-check these flags;
+
+                    sp0_hit_flag = true;
+
+                    //if (cycle <= 8) {
+                    //    if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
+                    //        sp0_hit_flag = true;
+                    //    //either bg or sp left-clipping is happenning, sp0hit wont occur;
+                    //}
+                    //else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
+                    //    sp0_hit_flag = true;
+                    //}
+
+
+#ifdef T_SP0H
+                    if (sp0_hit_flag)
+                        LOG() << " <-- sp0 hit at scrn pix coord (" << (int)(cycle - 1) << "," << (int)(scanline - 1) << ")";
+#endif
+                    //}
                 }
-                //copy x_coord to x_counter;
-                sprt_x_counters[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx].x_coord;
             }
-            break;
-        case 7:
-            if (sprt_fetch_idx < sprt_num) {
-                sprt_addr |= 0x0008;
-                read(sprt_addr, sprt_shifters_hi[sprt_fetch_idx]);
-                if (sec_oam.ent[sprt_fetch_idx].flip_h) {
-                    sprt_shifters_hi[sprt_fetch_idx] = flip_hori(sprt_shifters_hi[sprt_fetch_idx]);
-                }
-                //copy attribute byte to sprt_attr_latches;
-                sprt_attr_latches[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx][2];
-                ++sprt_fetch_idx;
-            }
-            break;
+
+#ifdef T_SP0H
+            if (sprite_pixel_count < 8) LOG() << std::endl;
+            ++sprite_pixel_count;
+#endif
+
         }
-        return;
     }
+
+    //void PPU::fetch_sprt_tile() {
+    //    auto flip_hori = [](Byte b) {
+    //        b = (b & 0xf0) >> 4 | (b & 0x0f) << 4;
+    //        b = (b & 0xcc) >> 2 | (b & 0x33) << 2;
+    //        b = (b & 0xaa) >> 1 | (b & 0x55) << 1;
+    //        return b;
+    //    };
+    //
+    //    switch (cycle & 0x7) {
+    //    case 1:
+    //        read(vram_addr.get_nt_addr(), bkgr_next_id);
+    //        break;
+    //    case 3:
+    //        read(vram_addr.get_at_addr(), bkgr_next_attr);
+    //        break;
+    //    case 5:
+    //        if (sprt_fetch_idx < sprt_num) {
+    //            sprt_addr = get_sprt_addr();
+    //            read(sprt_addr, sprt_shifters_lo[sprt_fetch_idx]);
+    //            if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+    //                sprt_shifters_lo[sprt_fetch_idx] = flip_hori(sprt_shifters_lo[sprt_fetch_idx]);
+    //            }
+    //            //copy x_coord to x_counter;
+    //            sprt_x_counters[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx].x_coord;
+    //        }
+    //        break;
+    //    case 7:
+    //        if (sprt_fetch_idx < sprt_num) {
+    //            sprt_addr |= 0x0008;
+    //            read(sprt_addr, sprt_shifters_hi[sprt_fetch_idx]);
+    //            if (sec_oam.ent[sprt_fetch_idx].flip_h) {
+    //                sprt_shifters_hi[sprt_fetch_idx] = flip_hori(sprt_shifters_hi[sprt_fetch_idx]);
+    //            }
+    //            //copy attribute byte to sprt_attr_latches;
+    //            sprt_attr_latches[sprt_fetch_idx] = sec_oam.ent[sprt_fetch_idx][2];
+    //            ++sprt_fetch_idx;
+    //        }
+    //        break;
+    //    }
+    //    return;
+    //}
 
     inline Word PPU::get_sprt_addr() {
         const OBJ_ATTR& r_oa = sec_oam.ent[sprt_fetch_idx];
@@ -505,10 +562,26 @@ namespace nes {
         else {//size 8*16
             //"For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number."
             select = ((Word)r_oa.index & 0x1) << 12;
+            //if (r_oa.flip_v) index ^= 0x0010;
+            //if (offset < 8)  index ^= 0x0010;
 
-            if (r_oa.flip_v) index ^= 0x0010;
-            if (offset < 8)  index ^= 0x0010;
-
+            index &= 0x0fe0;
+            if (!r_oa.flip_v) {
+                if (offset < 8) {
+                    
+                }
+                else {
+                    index |= 0x0010;
+                }
+            }
+            else {
+                if (offset < 8) {
+                    index |= 0x0010;
+                }
+                else {
+                
+                }
+            }
 
             //if (!r_oa.flip_v) {//not flipped vertically;
             //    if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
@@ -527,7 +600,8 @@ namespace nes {
             //    }
             //}
         }
-        if (r_oa.flip_v) offset = 7 - (offset & 0x0007);//if flipped vertically;
+        offset &= 0x0007;
+        if (r_oa.flip_v) offset = 7 - offset;//if flipped vertically;
         return select | index | offset;
     }
 
@@ -615,55 +689,6 @@ namespace nes {
             }
         }
 
-        //independent sprite#0 hit check:
-        if (sp0_present && first_being_rendered) {
-            //Note: first_being_rendered actually == (ppu_mask.spr_enable && sprt_pixel > 0 && i == 0);
-#ifdef T_SP0H
-            if (sprite_pixel_count < 8) {
-                //no matter sp0 and bg are opaque or transparent, show the infos;
-                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 render "
-                    << "BG:" << (int)bkgr_pixel << " SP:" << (int)sprt_pixel << " P=" << (int)sprt_priority;
-            }
-#endif
-            if (!sp0_hit_flag) {
-
-                if ((sprt_pixel > 0) && (bkgr_pixel > 0)) {
-
-                    //if ((cycle < 256) && ppu_mask.bkgr_enable) {
-                    //Note: if ppu_mask.bkgr_enable == 0, then bkgr_pixel must be 0; so no need to double check bkgr_enable flag;
-                    //      Same for ppu_mask.sprt_enable;
-                    if (cycle < 256) {
-                        //Note: Since it is already checked above the left-column clipping window,
-                        //      ie, if clipping happened, then correspond _pixel var will be changed to 0,
-                        //      it turns out that no need to double-check flags;
-
-                        sp0_hit_flag = true;
-
-                        //if (cycle <= 8) {
-                        //    if (ppu_mask.bkgr_col_enable && ppu_mask.spr_col_enable)
-                        //        sp0_hit_flag = true;
-                        //    //either bg or sp left-clipping is happenning, sp0hit wont occur;
-                        //}
-                        //else {//cycle : 9 ~ 255 : x = 8 ~ 254 (x starts from 0)
-                        //    sp0_hit_flag = true;
-                        //}
-
-
-#ifdef T_SP0H
-                        if (sp0_hit_flag)
-                            LOG() << " <-- sp0 hit at scrn pix coord (" << (int)(cycle - 1) << "," << (int)(scanline - 1) << ")";
-#endif
-                    }
-                }
-            }
-
-#ifdef T_SP0H
-            if (sprite_pixel_count < 8) LOG() << std::endl;
-            ++sprite_pixel_count;
-#endif
-
-        }
-
         //Priority multiplexer decision table
         //====================================================
         //BG pixel	Sprite pixel	Priority	    Output
@@ -710,6 +735,218 @@ namespace nes {
         //bkgr_screen.SetPixel(cycle - 1, scanline - 1, get_color(bkgr_attrb, bkgr_pixel));
 
         return;
+    }
+
+    inline void PPU::IDLE_DOT() {}
+
+    //clear ppu_status + shut down nmi + clear sprite buffers;
+    inline void PPU::CLR_FLAG() {
+        IN_FE_NT();
+        ppu_status = 0;//effectively clear vblank_flag, sprite_hit, and sprite_overflow;
+        sp0_hit_flag = false;
+        nmi_out = false;
+        //clear sprite rendering buffers;
+        for (Byte i = 0; i < 8; ++i) {
+            sprt_shifters_lo[i] = 0;
+            sprt_shifters_hi[i] = 0;
+            sprt_x_counters[i] = 0xff;
+            sprt_attr_latches[i] = 0;
+        }
+#ifdef T_SP0H
+        LOG() << "[PPU] vblank finished" << std::endl;
+#endif
+    }
+
+    //rendering during scanline 1 to 240;
+    inline void PPU::RENDER_N() {
+        if (!check_render_enabled()) return;
+        render_pixel();
+        check_sp0_hit();
+        update_bkgr_shifters();
+        update_sprt_shifters();
+    }
+
+    //invisible nametable fetches;
+    inline void PPU::IN_FE_NT() {
+        if (!check_render_enabled()) return;
+        load_bkgr_shifters();
+        fetch_nt_tile();
+        if (cycle == 337) return;
+        update_bkgr_shifters();
+        update_bkgr_shifters();
+    }
+
+    //invisible attrtable fetches;
+    inline void PPU::IN_FE_AT() {
+        if (!check_render_enabled()) return;
+        fetch_at_tile();
+        update_bkgr_shifters();
+        update_bkgr_shifters();
+    }
+
+    //invisible background tile fetches from pattTable;
+    inline void PPU::IN_FE_BG() {
+        if (!check_render_enabled()) return;
+        fetch_bg_tile();
+        update_bkgr_shifters();
+        update_bkgr_shifters();
+    }
+
+    //visible nametable fetches with clearing sec oam;
+    inline void PPU::V_F_N_CS() {
+        if (!check_render_enabled()) return;
+        load_bkgr_shifters();
+        fetch_nt_tile();
+        RENDER_N();
+        clear_sec_oam();
+    }
+
+    //visible attrtable fetches with clearing sec oam;
+    inline void PPU::V_F_A_CS() {
+        if (!check_render_enabled()) return;
+        fetch_at_tile();
+        RENDER_N();
+        clear_sec_oam();
+    }
+
+    //visible background tile fetches with clearing sec oam;
+    inline void PPU::V_F_B_CS() {
+        if (!check_render_enabled()) return;
+        fetch_bg_tile();
+        RENDER_N();
+        clear_sec_oam();
+    }
+
+    //visible nametable fetches with sprite evaluation;
+    inline void PPU::V_F_N_SE() {
+        if (!check_render_enabled()) return;
+        load_bkgr_shifters();
+        fetch_nt_tile();
+        RENDER_N();
+        eval_sprite();
+        //visible nametable fetches with clearing sec oam;
+    }
+
+    //visible attrtable fetches with sprite evaluation;
+    inline void PPU::V_F_A_SE() {
+        if (!check_render_enabled()) return;
+        fetch_at_tile();
+        RENDER_N();
+        eval_sprite();
+    }
+
+    //visible background tile fetches with sprite evaluation;
+    inline void PPU::V_F_B_SE() {
+        if (!check_render_enabled()) return;
+        fetch_bg_tile();
+        RENDER_N();
+        eval_sprite();
+    }
+
+    //increment x scroll;
+    inline void PPU::INC_HORI() {
+        if (!check_render_enabled()) return;
+        RENDER_N();
+        vram_addr.inc_hori();
+    }
+
+    //increment x scroll for pre-render line;
+    inline void PPU::INC_HR_P() {
+        if (!check_render_enabled()) return;
+        vram_addr.inc_hori();
+    }
+
+    //increment y scroll at cycle 256, which is the last visible dot;
+    inline void PPU::INC_VERT() {
+        if (!check_render_enabled()) return;
+        //no need to eval sprite in this dot;
+        render_pixel();
+        //sp0hit is NOT checked at cycle 256 (screen x 255);
+        update_bkgr_shifters();
+        update_sprt_shifters();
+        vram_addr.inc_hori();
+        vram_addr.inc_vert();
+        //need to clear for every scanline;
+        eval_state = eval_idx = eval_off = 0;
+        sprt_num = soam_idx;
+        soam_idx = 0;
+        sprt_fetch_idx = 0;
+#ifdef T_SP0H
+        if (sp0_pres_nl) LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " sp0 pres nl" << std::endl;
+#endif
+        sp0_present = sp0_pres_nl;
+        sp0_pres_nl = false;
+        for (Byte i = 0; i < 8; ++i) {
+            sprt_shifters_lo[i] = 0;
+            sprt_shifters_hi[i] = 0;
+            sprt_x_counters[i] = 0xff;
+            sprt_attr_latches[i] = 0;
+        }
+        //debug:
+        sprite_pixel_count = 0;
+    }
+
+    //increment y scroll for pre-render line;
+    inline void PPU::INC_VT_P() {
+        if (!check_render_enabled()) return;
+        vram_addr.inc_hori();
+        vram_addr.inc_vert();
+        //need to clear for every scanline;
+        eval_state = eval_idx = eval_off = 0;
+        sprt_num = soam_idx;
+        soam_idx = 0;
+        sprt_fetch_idx = 0;
+        sp0_present = sp0_pres_nl;
+        sp0_pres_nl = false;
+        for (Byte i = 0; i < 8; ++i) {
+            sprt_shifters_lo[i] = 0;
+            sprt_shifters_hi[i] = 0;
+            sprt_x_counters[i] = 0xff;
+            sprt_attr_latches[i] = 0;
+        }
+    }
+
+    //sprite tile fetches during cycle 257 to 320, scanline 1 to 240;
+    inline void PPU::SP_FETCH() {
+        if (!check_render_enabled()) return;
+        fetch_sp_tile();
+        oam_addr = 0;
+    }
+
+    //reset x scroll;
+    inline void PPU::RST_HORI() {
+        //at cycle 257;
+        if (!check_render_enabled()) return;
+        //no need to fetch sprite tile, for this dot is for garbage nt fetch;
+        update_sprt_shifters();
+        vram_addr.reset_hori(temp_addr);
+        oam_addr = 0;
+        //if (scroll_updated_while_rendering) {
+        //    scroll_updated_while_rendering = false;
+        //    fine_x = temp_fine_x;
+        //}
+    }
+
+    //reset y scroll during cycle 280 to 304 of pre-render scanline;
+    inline void PPU::RST_VERT() {
+        //only need to reset at cycle 280 and 304;
+        if (!check_render_enabled()) return;
+        vram_addr.reset_vert(temp_addr);
+        oam_addr = 0;
+    }
+
+    //the 339 dot at pre-render line;
+    inline void PPU::ODD_SKIP() {
+        if (check_render_enabled()) {
+            fetch_nt_tile();
+        }
+        ++cycle;//odd frame skip;
+    }
+
+    //the visible zone version of 339 dot;
+    inline void PPU::FET_NT_N() {
+        if (!check_render_enabled()) return;
+        fetch_nt_tile();
     }
 
     void PPU::connect(std::shared_ptr<Mapper>& mapp){
@@ -797,6 +1034,7 @@ namespace nes {
             break;
         case 4 : //$2004 : OAM data reg;
             oam[oam_addr] = data;
+            ++oam_addr;
             break;
         case 5 : //$2005 : screen scroll offset reg;
             ppu_scroll = data;
