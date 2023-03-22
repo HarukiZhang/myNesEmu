@@ -24,7 +24,7 @@ namespace nes {
         void reset();
 
         olc::Sprite& get_screen();
-        olc::Pixel& get_color(Byte palet, Byte pixel);//after debug, it should be put onto private:
+        olc::Pixel& get_color(Byte palet, Byte pixel);//after debug, it should be put onto private;
 
         //debug:
         bool is_frame_complete();
@@ -32,6 +32,7 @@ namespace nes {
         std::string get_obj_attr_ent(Word index);
         //olc::Sprite& get_bkgr();
         olc::Sprite& get_name_table(Word sel);
+        olc::Pixel& peek_color(Byte palet, Byte pixel);
 
     private:
         //void fetch_bkgr_tile(); <-- deprecated;
@@ -197,7 +198,7 @@ namespace nes {
 
         //debug:
         Word scanline_counter_counts = 0;//for MMC3
-        Word ppu_bus_latch = 0;//for MMC3
+        Word ppu_addr_bus_latch = 0;//for MMC3
         Byte sprite_pixel_count = 0;
 
         std::shared_ptr<Mapper> mapper = nullptr;

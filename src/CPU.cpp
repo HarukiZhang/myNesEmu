@@ -253,14 +253,12 @@ namespace nes {
             detect_interrupt();
 
 #ifdef L_MODE
-            if (cur_opcode == 0xD0) {//BNE
-                LOG() << "[CPU] " << instr_name_mtx[cur_opcode] << " " << std::dec << cycles;
-                if (phase == Instr_Phase::extra) {
-                    LOG() << "*" << std::endl;
-                }
-                else {
-                    LOG() << std::endl;
-                }
+            LOG() << "[CPU] " << instr_name_mtx[cur_opcode] << " " << std::dec << cycles;
+            if (phase == Instr_Phase::extra) {
+                LOG() << "*" << std::endl;
+            }
+            else {
+                LOG() << std::endl;
             }
 #endif
 

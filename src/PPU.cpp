@@ -3,6 +3,7 @@
 
 #define S_MODE
 //#define T_SP0H
+//#define TEST_MMC3
 
 #ifdef TEST_MMC3
 #include "Mapper.h"
@@ -124,15 +125,16 @@ namespace nes {
             //MMC3 scanline counter;
             if (check_render_enabled() && cycle == 260) {
 #ifdef TEST_MMC3
-                ++scanline_counter_counts;
-                const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
-                if (ptr->irq_reload) {
-                    LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle 
-                        << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
-                }
+                if (frame > 1900) {
+                    const Mapper_004* ptr = dynamic_cast<Mapper_004*>(mapper.get());
+                    if (ptr->irq_reload) {
+                        LOG() << "[MMC3] " << std::dec << scanline << ":" << cycle
+                            << " irq counter reload (" << (int)ptr->irq_latch << ")" << std::endl;
+                    }
 
-                if (mapper->count_scanline()) {
-                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
+                    if (mapper->count_scanline()) {
+                        LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " MMC3::IRQ" << std::endl;
+                    }
                 }
 #else
                 mapper->count_scanline();
@@ -254,10 +256,17 @@ namespace nes {
             if (scanline > 261) {
                 scanline = 0;
                 ++frame;
+
+#ifdef TEST_MMC3
+                if (frame > 1900) {
+                    LOG() << "PPUADDR converts : " << std::dec << scanline_counter_counts << std::endl;
+                    LOG() << "[PPU]------------------ frame " << std::dec << frame << " -----------------------" << std::endl;
+                    scanline_counter_counts = 0;
+                }
+#endif
+
 #ifdef T_SP0H
-                //LOG() << "[PPU] MMC1::counter counted " << std::dec << scanline_counter_counts << std::endl;
-                //scanline_counter_counts = 0;
-                LOG() << "[PPU]------------------ frame "<< std::dec << frame <<" -----------------------" << std::endl;
+                LOG() << "[PPU]------------------ frame " << std::dec << frame << " -----------------------" << std::endl;
                 if (ppu_mask.bkgr_enable) LOG() << "[PPU] BG ";
                 else LOG() << "[PPU] bg ";
                 if (ppu_mask.spr_enable) LOG() << "SP ";
@@ -549,6 +558,8 @@ namespace nes {
     //}
 
     inline Word PPU::get_sprt_addr() {
+        //return the address of the low bit plane, whose bit 3 is always 0,
+        //  so that the high bit address only need to OR a 0x0008;
         const OBJ_ATTR& r_oa = sec_oam.ent[sprt_fetch_idx];
         
         //Note: my coordinate starts from 1, so that the operand with scanline should add 1;
@@ -562,47 +573,57 @@ namespace nes {
         else {//size 8*16
             //"For 8x16 sprites, the PPU ignores the pattern table selection and selects a pattern table from bit 0 of this number."
             select = ((Word)r_oa.index & 0x1) << 12;
-            //if (r_oa.flip_v) index ^= 0x0010;
-            //if (offset < 8)  index ^= 0x0010;
 
             index &= 0x0fe0;
-            if (!r_oa.flip_v) {
-                if (offset < 8) {
-                    
-                }
-                else {
+            if (!r_oa.flip_v) {//vertically normal;
+                if (offset >= 8) {//the bottom half;
                     index |= 0x0010;
                 }
             }
-            else {
-                if (offset < 8) {
-                    index |= 0x0010;
-                }
-                else {
-                
-                }
+            else if (offset < 8) {//the top half that is vertically flipped;
+                index |= 0x0010;
             }
 
-            //if (!r_oa.flip_v) {//not flipped vertically;
-            //    if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
-            //        return select | (index & 0x0fe0) | offset;
-            //    }
-            //    else {//at bottom half;
-            //        return select |  index           | offset;
-            //    }
-            //}
-            //else {//flipped vertically;
-            //    if (scanline - r_oa.y_coord < 8) {//the pattern byte is at the upper half;
-            //        return select |  index           | offset;
-            //    }
-            //    else {//at bottom half;
-            //        return select | (index & 0x0fe0) | offset;
-            //    }
-            //}
         }
         offset &= 0x0007;
         if (r_oa.flip_v) offset = 7 - offset;//if flipped vertically;
-        return select | index | offset;
+
+        return (select | index | offset);
+
+        /* 8*16 sp vert flipping map */
+        // 00 top half low bit  <---------+
+        // 01                   <         | <-- this can be done by OR a 0x0010 to the index;
+        // 02                   <         |
+        // 03                   <         |
+        // 04                   <         |
+        // 05                   <------+  |
+        // 06                   <-----+|  |
+        // 07__________________ <----+||  |
+        // 08 top half high bit <----|||--|----+
+        // 09                   <----|||--|---+|
+        // 0A                        |||  |   ||
+        // 0B                        |||  |   ||
+        // 0C                        |||  |   ||
+        // 0D                        |||  |   ||
+        // 0E                        |||  |   ||
+        // 0F__________________ <----|||--|-+ ||
+        // 10 bottom half       <----+||  | | ||
+        // 11  low bit          <-----+|  | | || <-- while the bottom half should be mapped back to the top;
+        // 12                   <------+  | | ||
+        // 13                   <         | | ||
+        // 14                   <         | | ||
+        // 15                   <         | | ||
+        // 16                   <         | | ||
+        // 17__________________ <---------+ | ||
+        // 18 bottom half       <-----------+ ||
+        // 19   high bit                      ||
+        // 1A                                 ||
+        // 1B                                 ||
+        // 1C                                 ||
+        // 1D                                 ||
+        // 1E                   <-------------+|
+        // 1F__________________ <--------------+
+        //
     }
 
 
@@ -939,8 +960,8 @@ namespace nes {
     inline void PPU::ODD_SKIP() {
         if (check_render_enabled()) {
             fetch_nt_tile();
+            if (frame & 0x1) ++cycle;//odd frame skip;
         }
-        ++cycle;//odd frame skip;
     }
 
     //the visible zone version of 339 dot;
@@ -1088,24 +1109,23 @@ namespace nes {
     }
 
     inline bool PPU::read(Word addr, Byte &data){
+
+#ifdef TEST_MMC3
+        if (frame > 1900 && addr < 0x2000) {//ie, only count CHR-Mem accesses;
+            if (((ppu_addr_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                ++scanline_counter_counts;
+            }
+            ppu_addr_bus_latch = addr;
+        }
+#endif
+
         if (addr >= 0x3F00) {//$3F00 - $3FFF;  map to $3F00 - $3F1F; Palette;
             addr &= ((addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
             data = palette[addr];
-            //This is implemented as a bitwise AND with $30 on any value read from PPU $3F00-$3FFF, both on the display and through PPUDATA.
-            data &= greyscale_mask;
             return true;
         }
-        else {
-
-#ifdef TEST_MMC3
-            if (addr < 0x2000) {
-                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
-                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
-                }
-                ppu_bus_latch = addr;
-            }
-#endif
-
+        else {//0x0000 ~ 0x3EFF;
             return mapper->ppu_read(addr, data);
         }
 
@@ -1163,17 +1183,17 @@ namespace nes {
         //    return true;
         //}
 
-        if (addr < 0x3F00) {
-
 #ifdef TEST_MMC3
-            if (addr < 0x2000) {
-                if (((ppu_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
-                    LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
-                }
-                ppu_bus_latch = addr;
+        if (frame > 1900 && addr < 0x2000) {
+            if (((ppu_addr_bus_latch & 0x1000) == 0) && ((addr & 0x1000) > 0)) {
+                LOG() << "[PPU] " << std::dec << scanline << ":" << cycle << " A12 0¡ú1" << std::endl;
+                ++scanline_counter_counts;
             }
+            ppu_addr_bus_latch = addr;
+        }
 #endif
 
+        if (addr < 0x3F00) {
             return mapper->ppu_write(addr, data);
         }
         else {//$3F00 - $3FFF;
@@ -1226,8 +1246,8 @@ namespace nes {
             for (Word nt_x = 0; nt_x < 32; ++nt_x) {
                 Byte nt_idx = 0;
                 Byte attrb = 0;
-                read(kNAME_TBL_BASE | (sel << 10) | (nt_y * 32 + nt_x), nt_idx);
-                read(kATTR_TBL_BASE | (sel << 10) | (8 * (nt_y / 4) + (nt_x / 4)), attrb);
+                mapper->ppu_read(kNAME_TBL_BASE | (sel << 10) | (nt_y * 32 + nt_x), nt_idx);
+                mapper->ppu_read(kATTR_TBL_BASE | (sel << 10) | (8 * (nt_y / 4) + (nt_x / 4)), attrb);
                 if ((nt_y & 0x3) > 1) attrb >>= 4;
                 if ((nt_x & 0x3) > 1) attrb >>= 2;
                 attrb &= 0x3;
@@ -1240,7 +1260,7 @@ namespace nes {
                         Byte pixel = ((high_group & 0x1) << 1) | (low_group & 0x1);
                         low_group >>= 1;
                         high_group >>= 1;
-                        nt_screen.SetPixel(nt_x * 8 + (7 - col), nt_y * 8 + row, get_color(attrb, pixel));
+                        nt_screen.SetPixel(nt_x * 8 + (7 - col), nt_y * 8 + row, peek_color(attrb, pixel));
                     }
                 }
             }
@@ -1249,26 +1269,37 @@ namespace nes {
         return nt_screen;
     }
 
+    //debugger: this func do not influence PPU A12;
+    olc::Pixel& PPU::peek_color(Byte palet, Byte pixel)
+    {
+        Byte palet_addr = (palet << 2) | pixel;
+        palet_addr &= ((palet_addr & 0x0003) == 0) ? 0x000f : 0x001f;//if bits 0 and 1 are all 0, clear bit 4;
+        Byte idx = palette[palet_addr] & greyscale_mask;
+        return pal_screen[idx & 0x3f];
+    }
+
     olc::Pixel& PPU::get_color(Byte palet, Byte pixel) {
         read(kPALETTE_BASE | (palet << 2) | pixel, palet_idx);
+        //This is implemented as a bitwise AND with $30 on any value read from PPU $3F00-$3FFF, both on the display and through PPUDATA.
+        palet_idx &= greyscale_mask;
         return pal_screen[palet_idx & 0x3f];
     }
 
-    olc::Sprite& PPU::get_pattern_table(Byte tb_sel, Byte palette) {
+    olc::Sprite& PPU::get_pattern_table(Byte tb_sel, Byte _palet) {
         for (Word tile_y = 0; tile_y < 16; ++tile_y) {
             for (Word tile_x = 0; tile_x < 16; ++tile_x) {
                 for (Word row = 0; row < 8; ++row) {
                     Byte msb_group = 0, lsb_group = 0;
                     Word temp_addr = ( ((Word)tb_sel << 12) | (tile_y << 8) | (tile_x << 4) | row );
-                    read(temp_addr & 0xfff7, lsb_group);
-                    read(temp_addr | 0x0008, msb_group);
+                    mapper->ppu_read(temp_addr & 0xfff7, lsb_group);
+                    mapper->ppu_read(temp_addr | 0x0008, msb_group);
                     for (Word col = 0; col < 8; ++col) {
                         Byte pixel = (msb_group & 0x1) + (lsb_group & 0x1);
                         msb_group >>= 1; lsb_group >>= 1;
                         spr_pattern_table[tb_sel].SetPixel(
                             (tile_x << 3) + (7 - col),
                             (tile_y << 3) + row,
-                            get_color(palette, pixel)
+                            peek_color(_palet, pixel)
                         );
                     }
                 }
