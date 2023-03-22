@@ -33,7 +33,10 @@ public:
 	static constexpr int kSTATUS_BAR_Y = 750;
 	static constexpr int kOAM_N_LINE = 30;
 
-	Demo() { sAppName = "myNesEmu_test_ppu"; }
+	Demo(){ sAppName = "myNesEmu_test_ppu"; }
+	void set_path(const char* file_path) {
+		_rom_file_path = file_path;
+	}
 private:
 	bool OnUserCreate() override {
 		/*
@@ -61,9 +64,9 @@ private:
 			Bomberman II (Japan)
 			Double Dragon (USA)
 			Final Fantasy (Japan) (Rev 1)   X
-			Final Fantasy II (Japan)        X
+			Final Fantasy II (Japan)        N
 			Mega Man 2 (USA)
-			Metroid (USA)
+			Metroid (USA)					X
 			Ninja Ryuuken Den (Japan)
 			Sangokushi - Chuugen no Hasha (Japan)   X
 			Tetris (USA)                    ok
@@ -74,7 +77,7 @@ private:
 			Puyo Puyo (Japan)
 
 			#003
-			Dragon Quest (Japan)
+			Dragon Quest (Japan)			B
 			Solomon no Kagi (Japan)
 
 			#004
@@ -82,13 +85,13 @@ private:
 			Adventure Island II (USA)
 			Adventure Island 3 (USA)
 			Batman Returns (USA)
-			Double Dragon II - The Revenge (USA)    X
-			Mother (Japan)
+			Double Dragon II - The Revenge (USA)    N
+			Mother (Japan)							N
 			Ninja Ryuuken Den III - Yomi no Hakobune (Japan)
 
 		*/
 
-		if (cart.load_file("D:\\haruk\\Projects\\nesEmu\\ROMs\\mapper_004\\Ninja Ryuuken Den III - Yomi no Hakobune (Japan).nes")) {
+		if (cart.load_file(_rom_file_path)) {
 			std::clog << "Demo::OnUserCreate : Cartridge loading : success" << std::endl;
 		}
 		else {
@@ -238,10 +241,11 @@ private:
 		const int swatch_size = 6;
 		for (int pal = 0; pal < 8; ++pal) {
 			for (int clr = 0; clr < 4; ++clr) {
+
 				FillRect(
 					x + pal * (swatch_size * 5) + clr * swatch_size, y,
 					swatch_size, swatch_size,
-					ppu.get_color(pal, clr)
+					ppu.peek_color(pal, clr)
 				);
 			}
 		}
@@ -305,6 +309,9 @@ private:
 	}
 private:
 
+	//_gfs::path _rom_file_path;
+	const char* _rom_file_path = nullptr;
+
 	bool bEmulationRun = false;
 	bool bGridOn = false;
 
@@ -325,10 +332,24 @@ private:
 
 };
 
-Demo demo;
 
+int main(int argc, char* argv[]) {
 
-int main() {
+	Demo demo;
+	if (argc == 1) {
+		char path_buf[512]{};
+		std::cout << "Please enter rom file path in the console." << std::endl;
+		std::cin.getline(path_buf, 512);
+		demo.set_path(path_buf);
+	}
+	else if (argc == 2) {
+		demo.set_path(argv[1]);
+	}
+	else {
+		std::cout << "Arguments are too much." << std::endl;
+		exit(0);
+		return 0;
+	}
 
 	std::ofstream log_file{ "./test_ppu.log", std::ios_base::trunc };
 	if (log_file.is_open() && log_file.good()) {
