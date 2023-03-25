@@ -7,14 +7,13 @@
 #include "HybridBus.h"
 #include "Cartridge.h"
 
-#include "Mapper_NROM.h"
 
 namespace nes {
 
     class Emulator {
         Emulator(){
             mbus.connect(&cpu, &ppu, mapper);
-            ppu.connect(&hbus);
+            //ppu.connect(&hbus);
             //TODO: according to cart, allocate a Mapper;
         }
     private:
