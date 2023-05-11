@@ -5,6 +5,12 @@ Now, only video is implemented and is basically good to run;
 
 Mapper 000 ~ 004 are implemented;
 
+## Playing Screenshots
+Macross
+![macross](\docs\screenshot_macross.png)
+Ninja Ryuukenden III
+![ninjia_gaiden](\docs\screenshot_ninja3.png)
+
 ## TODO lists:
 sound is not implemented;
 
