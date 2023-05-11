@@ -7,9 +7,9 @@ Mapper 000 ~ 004 are implemented;
 
 ## Playing Screenshots
 Macross
-![macross](.\docs\screenshot_macross.png)
+![macross](https://github.com/HarukiZhang/myNesEmu/blob/master/docs/screenshot_macross.png)
 Ninja Ryuukenden III
-![ninjia_gaiden](.\docs\screenshot_ninja3.png)
+![ninjia_gaiden](https://github.com/HarukiZhang/myNesEmu/blob/master/docs/screenshot_ninja3.png)
 
 ## TODO lists:
 sound is not implemented;
